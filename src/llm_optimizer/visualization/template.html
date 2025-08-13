@@ -1,321 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-        
-        .header h1 {
-            margin: 0 0 10px 0;
-            font-size: 2.5em;
-            font-weight: 700;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .header h2 {
-            margin: 0;
-            font-size: 1.2em;
-            font-weight: 400;
-            color: #666;
-        }
-        
-        .main-content {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-        
-        .info {
-            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-            border: none;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .info h3 {
-            margin: 0 0 10px 0;
-            color: #1976d2;
-            font-size: 1.3em;
-        }
-        
-        .info p {
-            margin: 0;
-            color: #424242;
-            line-height: 1.6;
-        }
-        
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 15px;
-        }
-        
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .control-group label {
-            font-weight: 600;
-            color: #555;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        select, input {
-            padding: 12px 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 14px;
-            background: white;
-            transition: all 0.3s ease;
-        }
-        
-        select:focus, input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        .chart-container {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            margin-bottom: 20px;
-        }
-        
-        .chart {
-            width: 100%;
-            height: 600px;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 20px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 15px;
-        }
-        
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: white;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        .checkbox-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #667eea;
-        }
-        
-        .field-description {
-            font-size: 0.8em;
-            color: #666;
-            margin-top: 4px;
-            font-style: italic;
-        }
-        
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .stat-card {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-        }
-        
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        }
-        
-        .stats {
-            max-width: 100%;
-            overflow-x: auto;
-            border-radius: 10px;
-        }
-        
-        .data-table thead {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        
-        .data-table th {
-            padding: 15px 12px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 14px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        
-        .data-table td {
-            padding: 12px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 13px;
-        }
-        
-        .data-table tbody tr:hover {
-            background-color: #f8f9fa;
-        }
-        
-        .copyable-cmd {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            padding: 8px 12px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-            transition: all 0.2s ease;
-        }
-        
-        .copyable-cmd:hover {
-            background: #e3f2fd;
-            border-color: #667eea;
-        }
-        
-        .cmd-text {
-            flex: 1;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            color: #333;
-            word-break: break-all;
-        }
-        
-        .copy-icon {
-            margin-left: 8px;
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .copyable-cmd:hover .copy-icon {
-            color: #667eea;
-        }
-        
-        .stat-value {
-            font-size: 2em;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .stat-label {
-            font-size: 0.9em;
-            opacity: 0.9;
-        }
-    </style>
+    <link rel="icon" type="image/png" sizes="32x32" href="src/llm_optimizer/visualization/favicon-32x32.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 {title}</h1>
-            <!-- <h2>{subtitle}</h2> -->
-        </div>
-        
-        <div class="main-content">
-            <!-- <div class="info">
-                <h3>📊 {subtitle}</h3>
-                <p>{description}</p>
-            </div> -->
-            
-            <div class="controls" id="controls">
-                <!-- Controls will be dynamically generated -->
-            </div>
-            
-            <div class="chart-container">
-                <div id="chart" class="chart"></div>
-            </div>
-            
-            <div class="legend" id="legend"></div>
-            
-            <div class="stats" id="stats">
-                <!-- Statistics will be dynamically generated -->
-            </div>
-        </div>
-    </div>
+<body class="bg-slate-50 text-slate-900">
+            <div id="root" class="w-screen h-screen"></div>
 
-    <script>
-        // Benchmark data and configuration
+    <script type="module">
+        // Import React, ReactDOM, and Lucide React components via ESM
+        import React, { useEffect, useMemo, useRef, useState } from 'https://esm.sh/react@18?dev';
+        import { createRoot } from 'https://esm.sh/react-dom@18/client?dev';
+        import { BarChart3, Info, Copy, Settings } from 'https://esm.sh/lucide-react@0.363.0?bundle&deps=react@18&dev';
+        import * as echarts from 'https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.esm.min.js';
+
+        // Embedded data/config from backend
         const data = {data_json};
         const constraints = {constraints_json};
         const config = {config_json};
@@ -323,693 +26,400 @@
         const fieldCategories = {field_categories_json};
         const defaults = {defaults_json};
         
-        // Color palette for different categories
         const colors = [
             '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe',
             '#00f2fe', '#43e97b', '#38f9d7', '#fa709a', '#fee140'
         ];
         
-        // Pareto optimal point calculation
         function getParetoPoints(points) {
-            const paretoPoints = [];
+            const result = [];
             for (let i = 0; i < points.length; i++) {
                 const p1 = points[i];
-                let isDominated = false;
-                
+                let dominated = false;
                 for (let j = 0; j < points.length; j++) {
                     if (i === j) continue;
                     const p2 = points[j];
-                    
-                    // Check if p2 dominates p1 (all coordinates >= and at least one >)
-                    const allGreaterOrEqual = p2.x >= p1.x && p2.y >= p1.y;
-                    const atLeastOneGreater = p2.x > p1.x || p2.y > p1.y;
-                    
-                    if (allGreaterOrEqual && atLeastOneGreater) {
-                        isDominated = true;
-                        break;
-                    }
+                    const allGE = p2.x >= p1.x && p2.y >= p1.y;
+                    const anyG = p2.x > p1.x || p2.y > p1.y;
+                    if (allGE && anyG) { dominated = true; break; }
                 }
-                
-                if (!isDominated) {
-                    paretoPoints.push(p1);
-                }
+                if (!dominated) result.push(p1);
             }
-            return paretoPoints;
+            return result;
         }
         
-        // Initialize the chart
-        let currentPlot = null;
-        
         function checkConstraints(point) {
-            // If no constraints are defined, treat all points as not satisfying constraints
-            if (Object.keys(constraints).length === 0) {
-                return false;
-            }
-            
-            // Check if the point satisfies all constraints
-            for (const [field, constraintValue] of Object.entries(constraints)) {
-                if (point[field] !== undefined) {
-                    // For now, assume constraints are minimum values (>=)
-                    // You can extend this to support different constraint types
-                    if (point[field] < constraintValue) {
-                        return false;
-                    }
-                }
+            if (!constraints || Object.keys(constraints).length === 0) return false;
+            for (const [field, minVal] of Object.entries(constraints)) {
+                if (point[field] !== undefined && point[field] < minVal) return false;
             }
             return true;
         }
         
         function addConstraintLines(traces, xAxis, yAxis, transformedData) {
-            console.log('Adding constraint lines for:', constraints);
-            console.log('Current axes:', xAxis, yAxis);
-            
-            // Add constraint lines for each constraint
-            for (const [field, constraintValue] of Object.entries(constraints)) {
-                console.log('Processing constraint:', field, '>=', constraintValue);
-                
-                // Transform constraint value for latency fields (X axis)
-                let transformedConstraintValue = constraintValue;
-                if (config.fields[field].category === 'latency') {
-                    if (config.fields[field].unit === 'ms') {
-                        transformedConstraintValue = 1000 / constraintValue;
-                    } else {
-                        transformedConstraintValue = 1 / constraintValue;
-                    }
+            if (!constraints) return;
+            for (const [field, rawVal] of Object.entries(constraints)) {
+                let v = rawVal;
+                if (config.fields[field]?.category === 'latency') {
+                    v = config.fields[field].unit === 'ms' ? (1000 / rawVal) : (1 / rawVal);
                 }
-                
-                // Only add constraint line if it's one of the axes
                 if (field === yAxis) {
-                    console.log('Adding horizontal constraint line at Y =', transformedConstraintValue);
-                    // Horizontal line for Y-axis constraint - extend beyond data range
                     const xMin = Math.min(...transformedData.map(d => d[xAxis]));
                     const xMax = Math.max(...transformedData.map(d => d[xAxis]));
-                    const xRange = xMax - xMin;
-                    const extendedXRange = [xMin - xRange * 0.1, xMax + xRange * 0.1];
-                    
-                    console.log('X range:', extendedXRange, 'Y value:', transformedConstraintValue);
-                    
-                    const constraintTrace = {
-                        x: extendedXRange,
-                        y: [transformedConstraintValue, transformedConstraintValue],
-                        mode: 'lines',
-                        type: 'scatter',
-                        name: `Constraint: ${field} >= ${constraintValue}`,
-                        line: {
-                            color: '#ff4444',
-                            width: 3,
-                            dash: 'dash'
-                        },
-                        showlegend: false,
-                        hoverinfo: 'skip'
-                    };
-                    traces.push(constraintTrace);
-                    console.log('Added constraint trace:', constraintTrace);
+                    const r = xMax - xMin;
+                    traces.push({ x: [xMin - r * 0.1, xMax + r * 0.1], y: [v, v], mode: 'lines', type: 'scatter', line: { color: '#ef4444', width: 3, dash: 'dash' }, name: `Constraint: ${field} >= ${rawVal}`, hoverinfo: 'skip', showlegend: false });
                 } else if (field === xAxis) {
-                    console.log('Adding vertical constraint line at X =', transformedConstraintValue);
-                    // Vertical line for X-axis constraint - extend beyond data range
                     const yMin = Math.min(...transformedData.map(d => d[yAxis]));
                     const yMax = Math.max(...transformedData.map(d => d[yAxis]));
-                    const yRange = yMax - yMin;
-                    const extendedYRange = [yMin - yRange * 0.1, yMax + yRange * 0.1];
-                    
-                    console.log('Y range:', extendedYRange, 'X value:', transformedConstraintValue);
-                    
-                    const constraintTrace = {
-                        x: [transformedConstraintValue, transformedConstraintValue],
-                        y: extendedYRange,
-                        mode: 'lines',
-                        type: 'scatter',
-                        name: `Constraint: ${field} >= ${constraintValue}`,
-                        line: {
-                            color: '#ff4444',
-                            width: 3,
-                            dash: 'dash'
-                        },
-                        showlegend: false,
-                        hoverinfo: 'skip'
-                    };
-                    traces.push(constraintTrace);
-                    console.log('Added constraint trace:', constraintTrace);
-                } else {
-                    console.log('Constraint field', field, 'is not currently displayed on axes');
+                    const r = yMax - yMin;
+                    traces.push({ x: [v, v], y: [yMin - r * 0.1, yMax + r * 0.1], mode: 'lines', type: 'scatter', line: { color: '#ef4444', width: 3, dash: 'dash' }, name: `Constraint: ${field} >= ${rawVal}`, hoverinfo: 'skip', showlegend: false });
                 }
             }
         }
-        
-        function generateControls() {
-            const controlsContainer = document.getElementById('controls');
-            controlsContainer.innerHTML = '';
-            
-            // X Axis control
-            const xAxisGroup = createControlGroup('X Axis', 'xAxis', 'xAxis');
-            controlsContainer.appendChild(xAxisGroup);
-            
-            // Y Axis control
-            const yAxisGroup = createControlGroup('Y Axis', 'yAxis', 'yAxis');
-            controlsContainer.appendChild(yAxisGroup);
-            
-            // Display options
-            const displayGroup = document.createElement('div');
-            displayGroup.className = 'control-group';
-            displayGroup.innerHTML = `
-                <label>Display Options</label>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="showLines" ${defaults.showLines ? 'checked' : ''}>
-                    <label for="showLines">Show Lines</label>
-                </div>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="showPoints" ${defaults.showPoints ? 'checked' : ''}>
-                    <label for="showPoints">Show Points</label>
-                </div>
-            `;
-            controlsContainer.appendChild(displayGroup);
-            
-            // Set default values with fallback to first available option
-            function setDefaultValue(selectId, defaultValue, fallbackValue) {
-                const select = document.getElementById(selectId);
-                const defaultOption = select.querySelector(`option[value="${defaultValue}"]`);
-                
-                if (defaultOption && !defaultOption.disabled) {
-                    select.value = defaultValue;
-                } else {
-                    // Find first available option
-                    const availableOptions = Array.from(select.options).filter(option => !option.disabled);
-                    if (availableOptions.length > 0) {
-                        select.value = availableOptions[0].value;
-                    } else {
-                        select.value = fallbackValue;
-                    }
-                }
-            }
-            
-            setDefaultValue('xAxis', defaults.xAxis || 'mean_e2e_latency_ms', 'mean_e2e_latency_ms');
-            setDefaultValue('yAxis', defaults.yAxis || 'output_throughput', 'output_throughput');
+
+        function getAxisLabel(metric) {
+            const f = config.fields?.[metric];
+            if (!f) return metric;
+            if (f.category === 'latency') return `1/${f.label} (tokens/s)`;
+            return f.label + (f.unit ? ` (${f.unit})` : '');
         }
-        
-        function createControlGroup(label, id, type) {
-            const group = document.createElement('div');
-            group.className = 'control-group';
-            
-            const labelElement = document.createElement('label');
-            labelElement.textContent = label;
-            group.appendChild(labelElement);
-            
-            const select = document.createElement('select');
-            select.id = id;
-            
-            // Add options based on field categories with restrictions
-            Object.entries(fieldOptions).forEach(([categoryId, categoryInfo]) => {
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = categoryInfo.label;
-                
-                Object.entries(categoryInfo.fields).forEach(([fieldId, fieldInfo]) => {
-                    // X axis can only select latency category
-                    if (id === 'xAxis' && categoryId !== 'latency') {
-                        return;
-                    }
-                    
-                    // Y axis can only select performance category
-                    if (id === 'yAxis' && categoryId !== 'performance') {
-                        return;
-                    }               
-                    
-                    const option = document.createElement('option');
-                    option.value = fieldId;
-                    option.textContent = `${fieldInfo.label}${fieldInfo.unit ? ' (' + fieldInfo.unit + ')' : ''}`;
-                    
-                    // Handle disabled fields
-                    if (fieldInfo.disabled) {
-                        option.disabled = true;
-                        option.textContent += ' (No data)';
-                        option.style.color = '#999';
-                    }
-                    
-                    optgroup.appendChild(option);
+
+        function generateHoverText(point) {
+            if (!config.fields) return JSON.stringify(point, null, 2);
+            const grouped = {};
+            Object.entries(config.fields).forEach(([id, info]) => {
+                if (point[id] === undefined) return;
+                const cat = info.field_category || 'other';
+                if (!grouped[cat]) grouped[cat] = [];
+                let value = point[id];
+                let label = info.label;
+                let unit = info.unit ? ` ${info.unit}` : '';
+                if (info.category === 'latency' && value > 0) {
+                    value = info.unit === 'ms' ? (1000 / value).toFixed(2) : (1 / value).toFixed(2);
+                    label = `1/${info.label}`;
+                    unit = ' (tokens/s)';
+                }
+                grouped[cat].push({ label, value, unit });
+            });
+            let text = '';
+            Object.entries(grouped).forEach(([cat, fields]) => {
+                const catLabel = fieldCategories?.[cat]?.label || cat;
+                text += `<b>${catLabel}:</b><br>`;
+                fields.forEach(({ label, value, unit }) => {
+                    text += `  ${label}: ${value}${unit}<br>`;
                 });
-                
-                // Only add optgroup if it has options
-                if (optgroup.children.length > 0) {
-                    select.appendChild(optgroup);
-                }
+                text += '<br>';
             });
-            
-            group.appendChild(select);
-            
-            // Add description
-            const description = document.createElement('div');
-            description.className = 'field-description';
-            description.id = id + '_description';
-            group.appendChild(description);
-            
-            // Update description when selection changes
-            select.addEventListener('change', function() {
-                updateFieldDescription(id);
-            });
-            
-            return group;
+            return text;
         }
-        
-        function updateFieldDescription(controlId) {
-            const select = document.getElementById(controlId);
-            const description = document.getElementById(controlId + '_description');
-            const fieldId = select.value;
-            
-            if (config.fields && config.fields[fieldId]) {
-                description.textContent = config.fields[fieldId].description;
-            } else {
-                description.textContent = '';
-            }
+
+        function getLegendValues(dataset) {
+            const colorBy = defaults?.colorBy || 'framework';
+            const labels = Array.from(new Set(dataset.map(d => d[colorBy]).filter(v => v != null))).sort();
+            const header = config.fields?.[colorBy]?.label || colorBy;
+            return { field: colorBy, header, labels };
         }
-        
-        function updateChart() {
-            const xAxis = document.getElementById('xAxis').value;
-            const yAxis = document.getElementById('yAxis').value;
-            const showLines = document.getElementById('showLines').checked;
-            const showPoints = document.getElementById('showPoints').checked;
-            
-            // Filter out invalid data points and transform latency values
-            const validData = data.filter(point => 
-                point[xAxis] !== undefined && 
-                point[yAxis] !== undefined
-            ).map(point => {
-                const transformedPoint = { ...point };
-                
-                // Transform X axis (latency) to 1/latency for display
-                if (point[xAxis] > 0) {
-                    if (config.fields[xAxis].unit === 'ms') {
-                        transformedPoint[xAxis] = 1000 / point[xAxis];
-                    } else {
-                        transformedPoint[xAxis] = 1 / point[xAxis];
-                    }
-                }
-                
-                // Y axis (throughput) doesn't need transformation
-                
-                return transformedPoint;
-            });
-            
-            if (validData.length === 0) {
-                document.getElementById('chart').innerHTML = '<p style="text-align: center; color: #666; padding: 50px;">No valid data to display</p>';
+
+        function useTransformedData(data, xAxis, yAxis) {
+            return useMemo(() => {
+                return data
+                    .filter(p => p[xAxis] !== undefined && p[yAxis] !== undefined)
+                    .map(p => {
+                        const t = { ...p };
+                        const f = config.fields?.[xAxis];
+                        if (f?.category === 'latency' && p[xAxis] > 0) {
+                            t[xAxis] = f.unit === 'ms' ? (1000 / p[xAxis]) : (1 / p[xAxis]);
+                        }
+                        return t;
+                    });
+            }, [data, xAxis, yAxis]);
+        }
+
+        function Chart({ dataset, xAxis, yAxis, showLines, showPoints }) {
+            const ref = useRef(null);
+            useEffect(() => {
+                if (!dataset || dataset.length === 0) {
+                    if (ref.current) ref.current.innerHTML = '<p class="text-center text-slate-500 py-12">No valid data to display</p>';
                 return;
             }
-            // Initialize traces array
-            const traces = [];
-            
-            // Add constraint lines FIRST (so they appear behind data points)
-            addConstraintLines(traces, xAxis, yAxis, validData);
-            
-            // Calculate Pareto optimal points on frontend
-            const pointsForPareto = validData.map(d => ({
-                x: d[xAxis],
-                y: d[yAxis],
-                original: d
-            }));
-            const paretoPoints = getParetoPoints(pointsForPareto);
-            const paretoSet = new Set(paretoPoints.map(p => p.original));
-            
-            // Separate Pareto and non-Pareto points
-            const paretoData = validData.filter(d => paretoSet.has(d));
-            const nonParetoData = validData.filter(d => !paretoSet.has(d));
-            
-            console.log('Pareto data count:', paretoData.length);
-            console.log('Non-Pareto data count:', nonParetoData.length);
-            
-            // Add line trace if enabled (only for Pareto points)
+
+                const dom = ref.current;
+                const chart = echarts.init(dom);
+
+                const pts = dataset.map(d => ({ x: d[xAxis], y: d[yAxis], original: d }));
+                const pareto = getParetoPoints(pts);
+                const paretoSet = new Set(pareto.map(p => p.original));
+                const paretoData = dataset.filter(d => paretoSet.has(d));
+                const nonParetoData = dataset.filter(d => !paretoSet.has(d));
+
+                const series = [];
             if (showLines && paretoData.length > 1) {
-                // Sort Pareto data by x-axis for proper line connections
-                const sortedParetoData = paretoData.sort((a, b) => a[xAxis] - b[xAxis]);
-                
-                const lineTrace = {
-                    x: sortedParetoData.map(d => d[xAxis]),
-                    y: sortedParetoData.map(d => d[yAxis]),
-                    mode: 'lines',
-                    type: 'scatter',
-                    name: 'Pareto front',
-                    line: {
-                        color: '#667eea',
-                        width: 3,
-                        dash: 'solid'
-                    },
-                    showlegend: false,
-                    hoverinfo: 'skip'
-                };
-                traces.push(lineTrace);
-            }
-            
-            // Add all data points directly
-            if (showPoints) {
-                // Add Pareto optimal points
-                if (paretoData.length > 0) {
-                    const paretoPointsWithConstraint = paretoData.map(d => {
-                        const satisfiesConstraints = checkConstraints(d);
-                        return {
-                            x: d[xAxis],
-                            y: d[yAxis],
-                            point: d,
-                            satisfiesConstraints: satisfiesConstraints
-                        };
+                    const sorted = [...paretoData].sort((a, b) => a[xAxis] - b[xAxis]);
+                    series.push({
+                        type: 'line', name: 'Pareto front', smooth: 0.2, symbol: 'none',
+                        lineStyle: { color: '#0e7a66', width: 3 },
+                        areaStyle: { color: 'rgba(16,185,129,0.06)' },
+                        silent: true,
+                        z: 0,
+                        data: sorted.map(d => [d[xAxis], d[yAxis]])
                     });
-                    
-                    // Pareto points that satisfy constraints (green)
-                    const paretoSatisfied = paretoPointsWithConstraint.filter(p => p.satisfiesConstraints);
-                    if (paretoSatisfied.length > 0) {
-                        const paretoSatisfiedTrace = {
-                            x: paretoSatisfied.map(p => p.x),
-                            y: paretoSatisfied.map(p => p.y),
-                            mode: 'markers',
-                            type: 'scatter',
-                            name: 'Pareto optimal (satisfies constraints)',
-                            marker: {
-                                color: '#00FF00', // Bright green
-                                size: 14,
-                                opacity: 0.95,
-                                line: {
-                                    color: '#00FF00',
-                                    width: 2
-                                },
-                                symbol: 'circle'
-                            },
-                            text: paretoSatisfied.map(p => generateHoverText(p.point)),
-                            hoverinfo: 'text'
-                        };
-                        traces.push(paretoSatisfiedTrace);
-                    }
-                    
-                    // Pareto points that don't satisfy constraints (blue)
-                    const paretoUnsatisfied = paretoPointsWithConstraint.filter(p => !p.satisfiesConstraints);
-                    if (paretoUnsatisfied.length > 0) {
-                        const paretoUnsatisfiedTrace = {
-                            x: paretoUnsatisfied.map(p => p.x),
-                            y: paretoUnsatisfied.map(p => p.y),
-                            mode: 'markers',
-                            type: 'scatter',
-                            name: 'Pareto optimal',
-                            marker: {
-                                color: '#667eea', // Blue
-                                size: 12,
-                                opacity: 0.9,
-                                line: {
-                                    color: 'white',
-                                    width: 2
-                                },
-                                symbol: 'circle'
-                            },
-                            text: paretoUnsatisfied.map(p => generateHoverText(p.point)),
-                            hoverinfo: 'text'
-                        };
-                        traces.push(paretoUnsatisfiedTrace);
-                    }
                 }
-                
-                // Add non-Pareto points (gray)
-                if (nonParetoData.length > 0) {
-                    const nonParetoTrace = {
-                        x: nonParetoData.map(d => d[xAxis]),
-                        y: nonParetoData.map(d => d[yAxis]),
-                        mode: 'markers',
-                        type: 'scatter',
-                        name: 'Non-Pareto optimal',
-                        marker: {
-                            color: '#CCCCCC', // Gray
-                            size: 10,
-                            opacity: 0.6,
-                            line: {
-                                color: '#999999',
-                                width: 1
+                if (showPoints) {
+                    if (paretoData.length) {
+                        const withC = paretoData.map(d => ({ d, ok: checkConstraints(d) }));
+                        const sat = withC.filter(p => p.ok).map(({ d }) => d);
+                        const uns = withC.filter(p => !p.ok).map(({ d }) => d);
+                        if (sat.length) series.push({
+                            type: 'scatter', name: 'Pareto ✓', symbol: 'circle', symbolSize: 22,
+                            zlevel: 2,
+                            itemStyle: { 
+                                color: new echarts.graphic.RadialGradient(0.5, 0.5, 0.9, [
+                                    { offset: 0, color: 'rgba(255,255,255,0.85)' },
+                                    { offset: 0.55, color: 'rgba(79,209,197,0.95)' },
+                                    { offset: 1, color: '#14b8a6' }
+                                ]),
+                                borderColor: '#0f766e',
+                                borderWidth: 2
                             },
-                            symbol: 'circle'
+                            emphasis: { scale: 1.15, focus: 'series' },
+                            tooltip: { 
+                                trigger: 'item', 
+                                backgroundColor: 'rgba(0,0,0,0)', 
+                                borderWidth: 0, 
+                                padding: 0,
+                                extraCssText: 'background: linear-gradient(180deg, #5eead4 0%, #0f766e 35%, #000000 80%); border-radius: 10px; padding: 12px; color: #ffffff;',
+                                formatter: (p) => { 
+                                    const m = p.data && p.data.__meta; 
+                                    const txt = m ? generateHoverText(m.point) : ''; 
+                                    const title = '<span style=\'color:#eafff7;font-weight:800\'>Pareto</span>'; 
+                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`; 
+                                } 
+                            },
+                            z: 3,
+                            data: sat.map(d => ({ value: [d[xAxis], d[yAxis]], tooltip: { formatter: () => generateHoverText(d) } }))
+                        });
+                        if (uns.length) series.push({
+                            type: 'scatter', name: 'Pareto', symbolSize: 14,
+                            itemStyle: { color: '#14b8a6', borderColor: '#fff', borderWidth: 2 },
+                            emphasis: { scale: 1.15, focus: 'series' },
+                            tooltip: { 
+                                trigger: 'item', 
+                                backgroundColor: 'rgba(0,0,0,0)', 
+                                borderWidth: 0, 
+                                padding: 0,
+                                extraCssText: 'background: linear-gradient(180deg, #2dd4bf 0%, #0f766e 35%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff;',
+                                formatter: (p) => { 
+                                    const m = p.data && p.data.__meta; 
+                                    const txt = m ? generateHoverText(m.point) : ''; 
+                                    const title = '<span style=\'color:#eafff7;font-weight:800\'>Pareto</span>'; 
+                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`; 
+                                } 
+                            },
+                            z: 2,
+                            data: uns.map(d => ({ value: [d[xAxis], d[yAxis]], tooltip: { formatter: () => generateHoverText(d) } }))
+                        });
+                    }
+                    if (nonParetoData.length) series.push({
+                        type: 'scatter', name: 'Others', symbolSize: 10,
+                        itemStyle: { color: '#94a3b8', borderColor: '#64748b', borderWidth: 1 },
+                        emphasis: { scale: 1.05, focus: 'series' },
+                        tooltip: {
+                            trigger: 'item', 
+                            backgroundColor: 'rgba(0,0,0,0)', 
+                            borderWidth: 0, 
+                            padding: 0,
+                            extraCssText: 'background: linear-gradient(180deg, #9ca3af 0%, #374151 90%, #1F2937 100%);border-radius: 10px; padding: 12px; color: #ffffff;',
+                            formatter: (p) => { const m = p.data && p.data.__meta; const txt = m ? generateHoverText(m.point) : ''; const label = '<span style=\'color:#ffffff;font-weight:700\'>Non‑Pareto</span>'; return `<div style=\'color:#ffffff;max-width:320px\'>${label}<div style=\'margin-top:6px;\'>${txt}</div></div>`; } 
                         },
-                        text: nonParetoData.map(d => generateHoverText(d)),
-                        hoverinfo: 'text'
-                    };
-                    traces.push(nonParetoTrace);
-                }
-            }
-            
-            const layout = {
-                title: {
-                    text: `${getAxisLabel(yAxis)} vs ${getAxisLabel(xAxis)}`,
-                    font: {
-                        size: 20,
-                        color: '#333'
-                    },
-                    x: 0.5,
-                    xanchor: 'center'
-                },
-                xaxis: {
-                    title: {
-                        text: getAxisLabel(xAxis),
-                        font: {
-                            size: 14,
-                            color: '#555'
-                        }
-                    },
-                    gridcolor: '#f0f0f0',
-                    zeroline: false,
-                    showline: true,
-                    linecolor: '#ddd',
-                    linewidth: 1
-                },
-                yaxis: {
-                    title: {
-                        text: getAxisLabel(yAxis),
-                        font: {
-                            size: 14,
-                            color: '#555'
-                        }
-                    },
-                    gridcolor: '#f0f0f0',
-                    zeroline: false,
-                    showline: true,
-                    linecolor: '#ddd',
-                    linewidth: 1
-                },
-                plot_bgcolor: 'white',
-                paper_bgcolor: 'white',
-                font: {
-                    family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                },
-                margin: {
-                    l: 80,
-                    r: 50,
-                    t: 80,
-                    b: 80
-                },
-                showlegend: false,
-                legend: {
-                    x: 0,
-                    y: 1,
-                    bgcolor: 'rgba(255,255,255,0.9)',
-                    bordercolor: '#ddd',
-                    borderwidth: 1,
-                    font: {
-                        size: 12
-                    }
-                },
-                hovermode: 'closest'
-            };
-            
-            const plotConfig = {
-                responsive: true,
-                displayModeBar: true,
-                modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
-                displaylogo: false,
-                toImageButtonOptions: {
-                    format: 'png',
-                    filename: 'pareto_llm_dashboard',
-                    height: 600,
-                    width: 1200,
-                    scale: 2
-                }
-            };
-            
-            Plotly.newPlot('chart', traces, layout, plotConfig);
-            currentPlot = document.getElementById('chart');
-            
-            // Update legend and stats
-            updateLegend(colorValues);
-            updateStats(validData, xAxis, yAxis);
-        }
-        
-        function getAxisLabel(metric) {
-            if (config.fields && config.fields[metric]) {
-                const field = config.fields[metric];
-                let label = field.label;
-                
-                // X axis (latency) gets transformed
-                if (field.category === 'latency') {
-                    label = `1/${label} (tokens/s)`;
-                } else {
-                    // Y axis (throughput) stays as is
-                    label += field.unit ? ` (${field.unit})` : '';
-                }
-                
-                return label;
-            }
-            return metric;
-        }
-        
-        function generateHoverText(point) {
-            let text = '';
-            
-            if (config.fields) {
-                // Group fields by their field_category
-                const groupedFields = {};
-                Object.entries(config.fields).forEach(([fieldId, fieldInfo]) => {
-                    if (point[fieldId] !== undefined) {
-                        const category = fieldInfo.field_category || 'other';
-                        if (!groupedFields[category]) {
-                            groupedFields[category] = [];
-                        }
-                        groupedFields[category].push({ fieldId, fieldInfo, value: point[fieldId] });
-                    }
-                });
-                
-                // Generate text with category headers
-                Object.entries(groupedFields).forEach(([category, fields]) => {
-                    if (fieldCategories && fieldCategories[category]) {
-                        text += `<b>${fieldCategories[category].label}:</b><br>`;
-                    } else {
-                        text += `<b>${category}:</b><br>`;
-                    }
-                    
-                    fields.forEach(({ fieldId, fieldInfo, value }) => {
-                        let displayValue = value;
-                        let displayLabel = fieldInfo.label;
-                        let unit = fieldInfo.unit ? ` ${fieldInfo.unit}` : '';
-                        
-                        // Transform latency values for display
-                        if (fieldInfo.category === 'latency' && value > 0) {
-                            if (fieldInfo.unit === 'ms') {
-                                displayValue = (1000 / value).toFixed(2);
-                            } else {
-                                displayValue = (1 / value).toFixed(2);
-                            }
-                            displayLabel = `1/${fieldInfo.label}`;
-                            unit = ' (tokens/s)';
-                        }
-                        
-                        text += `  ${displayLabel}: ${displayValue}${unit}<br>`;
+                        z: 1,
+                        data: nonParetoData.map(d => ({ value: [d[xAxis], d[yAxis]], tooltip: { formatter: () => generateHoverText(d) } }))
                     });
-                    text += '<br>';
+                }
+
+                const option = {
+                    backgroundColor: 'transparent',
+                    grid: { left: 70, right: 40, top: 50, bottom: 50 },
+                    xAxis: { name: getAxisLabel(xAxis), nameLocation: 'middle', nameGap: 35, type: 'value', axisLabel: { color: '#000' }, nameTextStyle: { color: '#000' }, axisLine: { lineStyle: { color: '#000' } }, splitLine: { lineStyle: { color: '#e5e7eb' } } },
+                    yAxis: { name: getAxisLabel(yAxis), nameLocation: 'middle', nameGap: 45, type: 'value', axisLabel: { color: '#000' }, nameTextStyle: { color: '#000' }, axisLine: { lineStyle: { color: '#000' } }, splitLine: { lineStyle: { color: '#e5e7eb' } } },
+                    tooltip: { trigger: 'item', backgroundColor: 'rgba(2,6,23,0.96)', textStyle: { color: '#ecfeff' }, borderWidth: 0, confine: true, transitionDuration: 0.05 },
+                    series
+                };
+
+                chart.setOption(option);
+                const onResize = () => chart.resize();
+                window.addEventListener('resize', onResize);
+                return () => { window.removeEventListener('resize', onResize); chart.dispose(); };
+            }, [dataset, xAxis, yAxis, showLines, showPoints]);
+
+            return React.createElement('div', { ref, className: 'w-full h-full min-h-[360px] overflow-hidden' });
+        }
+
+        function Controls({ xAxis, yAxis, showLines, showPoints, onChange, fieldOptions }) {
+            function selectOptions(id) {
+                const groups = [];
+                Object.entries(fieldOptions).forEach(([categoryId, categoryInfo]) => {
+                    const options = [];
+                    Object.entries(categoryInfo.fields).forEach(([fieldId, fieldInfo]) => {
+                        if (id === 'xAxis' && categoryId !== 'latency') return;
+                        if (id === 'yAxis' && categoryId !== 'performance') return;
+                        options.push(React.createElement('option', { key: fieldId, value: fieldId, disabled: !!fieldInfo.disabled }, `${fieldInfo.label}${fieldInfo.unit ? ' (' + fieldInfo.unit + ')' : ''}${fieldInfo.disabled ? ' (No data)' : ''}`));
+                    });
+                    if (options.length) {
+                        groups.push(React.createElement('optgroup', { key: categoryId, label: categoryInfo.label }, options));
+                    }
+                });
+                return groups;
+            }
+
+            return React.createElement('div', { className: 'bg-[#374151] border border-slate-600 rounded-xl p-5 space-y-5' }, [
+                React.createElement('h3', { key: 'h', className: 'text-base font-semibold tracking-wide text-slate-200 flex items-center gap-2' }, [
+                    React.createElement(Settings, { key: 'ic', size: 18, className: 'text-slate-300' }),
+                    'Chart Configuration'
+                ]),
+
+                // X
+                React.createElement('div', { key: 'x', className: 'flex flex-col gap-4' }, [
+                    React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-300 font-semibold' }, 'X-Axis'),
+                    React.createElement('select', { id: 'xAxis', value: xAxis, onChange: e => onChange({ xAxis: e.target.value }), className: 'px-2 py-2 rounded-lg border border-slate-600 bg-[#1f2937] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400' }, selectOptions('xAxis')),
+                    React.createElement('div', { className: 'text-xs text-slate-400 italic' }, config.fields?.[xAxis]?.description || '')
+                ]),
+
+                // Y
+                React.createElement('div', { key: 'y', className: 'flex flex-col gap-4' }, [
+                    React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-300 font-semibold' }, 'Y-Axis'),
+                    React.createElement('select', { id: 'yAxis', value: yAxis, onChange: e => onChange({ yAxis: e.target.value }), className: 'px-2 py-2 rounded-lg border border-slate-600 bg-[#1f2937] text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400' }, selectOptions('yAxis')),
+                    React.createElement('div', { className: 'text-xs text-slate-400 italic' }, config.fields?.[yAxis]?.description || '')
+                ]),
+
+                // Display
+                React.createElement('div', { key: 'd', className: 'flex flex-col gap-4 mt-6' }, [
+                    React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-300 font-semibold' }, 'Display Options'),
+                    React.createElement('label', { className: 'inline-flex items-center gap-2 text-slate-200 text-sm' }, [
+                        React.createElement('input', { key: 'i1', type: 'checkbox', checked: showLines, onChange: e => onChange({ showLines: e.target.checked }), className: 'w-4 h-4 accent-indigo-500' }),
+                        'Show Lines'
+                    ]),
+                    React.createElement('label', { className: 'inline-flex items-center gap-2 text-slate-200 text-sm' }, [
+                        React.createElement('input', { key: 'i2', type: 'checkbox', checked: showPoints, onChange: e => onChange({ showPoints: e.target.checked }), className: 'w-4 h-4 accent-indigo-500' }),
+                        'Show Points'
+                    ])
+                ])
+            ]);
+        }
+
+        function Legend({ dataset }) {
+            const { header, labels } = useMemo(() => getLegendValues(dataset), [dataset]);
+            return React.createElement('div', { className: 'bg-[#374151] border border-slate-600 rounded-xl p-4' }, [
+                React.createElement('h3', { key: 'h', className: 'mb-3 text-base font-semibold tracking-wide text-slate-200' }, header || 'Legend'),
+                React.createElement('div', { key: 'l', className: 'flex flex-col gap-2' }, labels.map((label, idx) => (
+                    React.createElement('div', { key: label, className: 'flex items-center gap-2 px-1 py-1 rounded-lg border border-slate-600 bg-[#1f2937] text-slate-200' }, [
+                        React.createElement('div', { key: 'c', className: 'w-3 h-3 rounded-full', style: { backgroundColor: colors[idx % colors.length] } }),
+                        React.createElement('span', { key: 't', className: 'text-sm' }, label)
+                    ])
+                )))
+            ]);
+        }
+
+        function SidebarFooter({ total }) {
+            return React.createElement('div', { className: 'mt-auto flex flex-wrap gap-2 text-slate-400 text-xs' }, [
+                React.createElement('div', { key: 'm', className: 'px-3 py-1 rounded-full bg-[#111827] border border-slate-700 text-slate-300' }, `Total Tests: ${total}`)
+            ]);
+        }
+
+        function DataTable({ dataset, onlyPareto = false, xAxis, yAxis }) {
+            const filtered = useMemo(() => {
+                if (!onlyPareto) return dataset;
+                // recompute pareto based on current axes
+                if (!dataset || dataset.length === 0) return [];
+                const pts = dataset.map(d => ({ x: d[xAxis], y: d[yAxis], original: d }));
+                const p = getParetoPoints(pts);
+                const set = new Set(p.map(i => i.original));
+                return dataset.filter(d => set.has(d));
+            }, [dataset, onlyPareto, xAxis, yAxis]);
+
+            const allFields = useMemo(() => {
+                const s = new Set();
+                filtered.forEach(p => Object.keys(p).forEach(k => s.add(k)));
+                return Array.from(s).sort();
+            }, [filtered]);
+
+            function copy(text, el) {
+                navigator.clipboard.writeText(text).then(() => {
+                    if (!el) return;
+                    const prev = el.innerHTML;
+                    el.innerHTML = '<span class="text-green-600">✓ Copied!</span>';
+                    setTimeout(() => el.innerHTML = prev, 900);
                 });
             }
-            
-            return text || JSON.stringify(point, null, 2);
-        }
-        
-        function updateLegend(colorValues) {
-            const legend = document.getElementById('legend');
-            legend.innerHTML = '';
-            
-            colorValues.forEach((colorValue, index) => {
-                const item = document.createElement('div');
-                item.className = 'legend-item';
-                item.innerHTML = `
-                    <div class="legend-color" style="background-color: ${colors[index % colors.length]}"></div>
-                    <span>${colorValue}</span>
-                `;
-                legend.appendChild(item);
-            });
-        }
-        
-        function updateStats(data, xAxis, yAxis) {
-            const stats = document.getElementById('stats');
-            stats.innerHTML = '';
-            
-            // Create table with all data
-            const table = document.createElement('table');
-            table.className = 'data-table';
-            
-            // Get all field names from the data
-            const allFields = new Set();
-            data.forEach(point => {
-                Object.keys(point).forEach(key => allFields.add(key));
-            });
-            const fieldNames = Array.from(allFields).sort();
-            
-            // Create table header
-            const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-            fieldNames.forEach(field => {
-                const th = document.createElement('th');
-                th.textContent = getAxisLabel(field);
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
-            table.appendChild(thead);
-            
-            // Create table body
-            const tbody = document.createElement('tbody');
-            data.forEach((point, index) => {
-                const row = document.createElement('tr');
-                fieldNames.forEach(field => {
-                    const td = document.createElement('td');
-                    const value = point[field];
-                    
-                    if (field === 'cmd') {
-                        // Make cmd field copyable
-                        td.innerHTML = `
-                            <div class="copyable-cmd" onclick="copyToClipboard(this, '${value.replace(/'/g, "\\'")}')" title="Click to copy">
-                                <span class="cmd-text">${value}</span>
-                                <span class="copy-icon">⧉</span>
-                            </div>
-                        `;
-                    } else if (typeof value === 'number') {
-                        td.textContent = value.toFixed(2);
-                    } else {
-                        td.textContent = value || '';
-                    }
-                    
-                    row.appendChild(td);
-                });
-                tbody.appendChild(row);
-            });
-            table.appendChild(tbody);
-            
-            stats.appendChild(table);
-        }
-        
-        function copyToClipboard(element, text) {
-            navigator.clipboard.writeText(text).then(() => {
-                // Show feedback
-                const originalText = element.innerHTML;
-                element.innerHTML = '<span style="color: green;">✓ Copied!</span>';
-                setTimeout(() => {
-                    element.innerHTML = originalText;
-                }, 1000);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
-            });
-        }
-        
 
-        
-        // Event listeners
-        function setupEventListeners() {
-            document.getElementById('xAxis').addEventListener('change', updateChart);
-            document.getElementById('yAxis').addEventListener('change', updateChart);
-            document.getElementById('showLines').addEventListener('change', updateChart);
-            document.getElementById('showPoints').addEventListener('change', updateChart);
-
+            return React.createElement('div', { className: 'mt-4 overflow-x-auto max-w-full' }, [
+                React.createElement('table', { key: 't', className: 'min-w-full text-sm border border-slate-200 rounded-lg overflow-hidden' }, [
+                    React.createElement('thead', { key: 'h' }, [
+                        React.createElement('tr', { key: 'r' }, allFields.map(f => (
+                            React.createElement('th', { key: f, className: 'text-white px-3 py-2 text-left text-xs font-semibold whitespace-nowrap', style: { background: '#67a5a1 70%' } }, getAxisLabel(f))
+                        )))
+                    ]),
+                    React.createElement('tbody', { key: 'b' }, filtered.map((row, idx) => (
+                        React.createElement('tr', { key: idx, className: 'odd:bg-white even:bg-slate-50' }, allFields.map(f => {
+                            const v = row[f];
+                            if (f === 'cmd') {
+                                return React.createElement('td', { key: f, className: 'px-3 py-2 border-b border-slate-100' }, (
+                                    React.createElement('div', { className: 'flex items-center justify-between cursor-pointer px-3 py-2 bg-slate-50 hover:bg-indigo-50 rounded-md border border-slate-200', onClick: (e) => copy(String(v), e.currentTarget), title: 'Click to copy' }, [
+                                        React.createElement('span', { key: 't', className: 'font-mono text-xs text-slate-700 break-all flex-1' }, String(v)),
+                                        React.createElement(Copy, { key: 'i', size: 14, className: 'text-slate-500 ml-2' })
+                                    ])
+                                ));
+                            }
+                            return React.createElement('td', { key: f, className: 'px-3 py-2 border-b border-slate-100 whitespace-nowrap' }, typeof v === 'number' ? v.toFixed(2) : (v ?? ''));
+                        }))
+                    )))
+                ])
+            ]);
         }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            generateControls();
-            setupEventListeners();
-            
-            // Update descriptions for initial values
-            updateFieldDescription('xAxis');
-            updateFieldDescription('yAxis');
-            
-            updateChart();
-        });
-        
-        // Handle window resize
-        window.addEventListener('resize', function() {
-            setTimeout(updateChart, 100);
-        });
+
+        function App() {
+            const [xAxis, setXAxis] = useState(defaults?.xAxis || 'mean_e2e_latency_ms');
+            const [yAxis, setYAxis] = useState(defaults?.yAxis || 'output_throughput');
+            const [showLines, setShowLines] = useState(defaults?.showLines ?? true);
+            const [showPoints, setShowPoints] = useState(defaults?.showPoints ?? true);
+
+            const dataset = useTransformedData(data, xAxis, yAxis);
+            const legendInfo = useMemo(() => getLegendValues(dataset), [dataset]);
+
+            return React.createElement('div', { className: 'grid grid-cols-[280px,1fr] gap-4 w-screen h-screen' }, [
+                // Sidebar
+                React.createElement('aside', { key: 's', className: 'bg-[#1f2937] text-slate-200 rounded-none p-4 flex flex-col gap-4 h-screen sticky top-0 left-0' }, [
+                    React.createElement('div', { key: 'brand', className: 'flex items-center gap-3 p-3 bg-[#111827] border border-slate-700 rounded-xl' }, [
+                        React.createElement(BarChart3, { key: 'logo', size: 24, className: 'text-emerald-400' }),
+                        React.createElement('div', { key: 'txt', className: 'leading-tight' }, [
+                            React.createElement('div', { key: 't', className: 'text-sm font-semibold text-slate-100' }, 'LLM Optimizer'),
+                            React.createElement('div', { key: 'st', className: 'text-xs text-slate-400' }, 'Pareto Frontier Analysis')
+                        ])
+                    ]),
+
+                    React.createElement(Controls, { key: 'ctrl', xAxis, yAxis, showLines, showPoints, fieldOptions, onChange: (c) => { if (c.xAxis !== undefined) setXAxis(c.xAxis); if (c.yAxis !== undefined) setYAxis(c.yAxis); if (c.showLines !== undefined) setShowLines(c.showLines); if (c.showPoints !== undefined) setShowPoints(c.showPoints); } }),
+
+                    React.createElement(SidebarFooter, { key: 'foot', total: dataset.length })
+                ]),
+
+                // Content
+                React.createElement('main', { key: 'm', className: 'bg-white p-5 h-screen flex flex-col overflow-hidden max-w-full' }, [
+                    React.createElement('div', { key: 'hdr', className: 'flex items-center justify-between mb-3' }, [
+                        React.createElement('div', { key: 'ttl', className: 'text-xl font-bold' }, `${getAxisLabel(yAxis)} vs ${getAxisLabel(xAxis)}`),
+                        React.createElement('div', { key: 'tag', className: 'text-xs text-slate-500' }, 'Pareto Frontier')
+                    ]),
+                    React.createElement('div', { key: 'chartWrap', className: 'flex-1 min-h-0 w-full' }, [
+                        React.createElement(Chart, { key: 'c', dataset, xAxis, yAxis, showLines, showPoints })
+                    ]),
+                    React.createElement('div', { key: 'tableWrap', className: 'mt-4 overflow-hidden' }, [
+                        React.createElement('div', { key: 'tableScroller', className: 'h-72 overflow-auto' }, [
+                            React.createElement(DataTable, { key: 'tbl', dataset, onlyPareto: true, xAxis, yAxis })
+                        ])
+                    ])
+                ])
+            ]);
+        }
+
+        createRoot(document.getElementById('root')).render(React.createElement(App));
     </script>
 </body>
 </html> 
