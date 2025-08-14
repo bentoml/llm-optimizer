@@ -11,8 +11,6 @@ from typing import Optional
 
 from huggingface_hub import hf_hub_download
 
-from llm_optimizer.predefined.gpus import get_precision_tflops
-
 
 @dataclass
 class ModelConfig:
@@ -56,29 +54,6 @@ def get_precision_bytes_per_param(precision: str) -> int:
     return precision_map[precision]
 
 
-def get_precision_multiplier(precision: str) -> float:
-    """
-    Get multiplier for KV cache calculations based on precision.
-
-    Args:
-        precision: Model precision
-
-    Returns:
-        Multiplier for KV cache memory calculations
-    """
-    return 1.0 if precision in ["fp16", "bf16"] else 0.5  # fp8 uses half the memory
-
-
-def get_head_dimension(model_config: ModelConfig) -> int:
-    """Get the head dimension for attention calculations."""
-    return model_config.hidden_dim // model_config.num_heads
-
-
-def get_kv_heads_dimension(model_config: ModelConfig) -> int:
-    """Get the KV heads dimension for grouped query attention."""
-    return model_config.hidden_dim // model_config.num_heads * model_config.num_kv_heads
-
-
 def calculate_model_memory_bytes(
     model_config: ModelConfig,
     precision: str,
@@ -100,88 +75,6 @@ def calculate_model_memory_bytes(
     memory_calculator = ModelMemoryCalculator()
     model_memory_bytes = memory_calculator.calculate_model_memory(model_config, precision)
     return int(model_memory_bytes * safety_factor)
-
-
-def calculate_kv_cache_memory_per_token(model_config: ModelConfig, precision: str) -> int:
-    """
-    Calculate KV cache memory per token in bytes.
-
-    Args:
-        model_config: Model configuration
-        precision: Model precision
-
-    Returns:
-        KV cache memory per token in bytes
-    """
-
-    from llm_optimizer.resources import ModelMemoryCalculator
-    memory_calculator = ModelMemoryCalculator()
-
-    kv_cache_bytes = memory_calculator.calculate_kv_cache_memory(
-        model_config,
-        sequence_length=1,
-        batch_size=1,
-        precision=precision
-    )
-
-    return kv_cache_bytes
-
-
-def calculate_activation_memory_per_token(model_config: ModelConfig, precision: str) -> int:
-    """
-    Calculate activation memory per token in bytes.
-
-    Args:
-        model_config: Model configuration
-        precision: Model precision
-
-    Returns:
-        Activation memory per token in bytes
-    """
-    bytes_per_param = get_precision_bytes_per_param(precision)
-
-    # Approximate activation memory per token
-    # This is a rough estimate: hidden_dim * layers * multiplier
-    activation_multiplier = 4  # Rough estimate for transformer activations
-    activation_per_token = (
-        model_config.hidden_dim * model_config.num_layers * activation_multiplier * bytes_per_param
-    )
-
-    return int(activation_per_token)
-
-
-def calculate_total_memory_needed_bytes(
-    model_config: ModelConfig,
-    precision: str,
-    concurrency: int,
-    sequence_length: int,
-    safety_factor: float = 1.2
-) -> int:
-    """
-    Calculate total memory needed for model execution.
-
-    Args:
-        model_config: Model configuration
-        precision: Model precision
-        concurrency: Number of concurrent requests
-        sequence_length: Average sequence length
-        safety_factor: Safety multiplier for overhead
-
-    Returns:
-        Total memory needed in bytes
-    """
-    model_memory_bytes = calculate_model_memory_bytes(model_config, precision)
-    kv_cache_per_token = calculate_kv_cache_memory_per_token(model_config, precision)
-    activation_per_token = calculate_activation_memory_per_token(model_config, precision)
-
-    # Total KV cache and activation memory
-    total_tokens = concurrency * sequence_length
-    dynamic_memory_bytes = (
-        (kv_cache_per_token + activation_per_token) * total_tokens
-    )
-
-    total_memory_bytes = int((model_memory_bytes + dynamic_memory_bytes) * safety_factor)
-    return total_memory_bytes
 
 
 def calculate_min_tensor_parallel_size(
@@ -212,7 +105,7 @@ def calculate_min_tensor_parallel_size(
 def generate_parameter_range(
     optimal_value: int,
     num_values: int = 3,
-    variation_factor: float = 0.3,
+    variation_factor: float = 0.5,
     min_val: int = 1,
     max_val: Optional[int] = None
 ) -> list[int]:
@@ -271,23 +164,6 @@ def generate_parameter_range(
     return values[:num_values]
 
 
-def generate_concurrency_range_3_values(optimal_concurrency: int) -> list[int]:
-    """
-    Generate exactly 3 concurrency values for tuning: [n/2, n, n+n/2].
-
-    Args:
-        optimal_concurrency: Base concurrency value
-
-    Returns:
-        List of exactly 3 concurrency values
-    """
-    low = max(1, optimal_concurrency // 2)
-    mid = optimal_concurrency
-    high = optimal_concurrency + (optimal_concurrency // 2)
-
-    return [low, mid, high]
-
-
 def generate_tp_dp_combinations(num_gpus: int, min_tp_size: int = 1) -> list[tuple[int, int]]:
     """
     Generate tensor parallel (TP) and data parallel (DP) combinations.
@@ -297,80 +173,21 @@ def generate_tp_dp_combinations(num_gpus: int, min_tp_size: int = 1) -> list[tup
         min_tp_size: Minimum tensor parallel size needed
 
     Returns:
-        List of (tp_size, dp_size) combinations
+        List of (TP, DP) tuples where TP * DP = num_gpus
     """
     combinations = []
 
-    # Generate all valid TP/DP combinations
+    # Generate all valid combinations
     for tp_size in range(min_tp_size, num_gpus + 1):
-        if num_gpus % tp_size == 0:  # TP must divide evenly
+        if num_gpus % tp_size == 0:  # Ensure even division
             dp_size = num_gpus // tp_size
             combinations.append((tp_size, dp_size))
 
-    # Sort by TP size (prefer smaller TP for efficiency)
-    return sorted(combinations)
+    # If no valid combinations, use all GPUs for TP
+    if not combinations:
+        combinations = [(num_gpus, 1)]
 
-
-
-def validate_precision(precision: str) -> None:
-    """
-    Validate precision parameter.
-
-    Args:
-        precision: Model precision to validate
-
-    Raises:
-        ValueError: If precision is not supported
-    """
-    valid_precisions = ["fp16", "bf16", "fp8"]
-    if precision not in valid_precisions:
-        raise ValueError(f"Unsupported precision: {precision}. Use {valid_precisions}")
-
-
-def validate_model_config(model_config: ModelConfig) -> None:
-    """
-    Validate model configuration parameters.
-
-    Args:
-        model_config: Model configuration to validate
-
-    Raises:
-        ValueError: If configuration is invalid
-    """
-    if model_config.num_params <= 0:
-        raise ValueError("Model must have positive number of parameters")
-
-    if model_config.num_layers <= 0:
-        raise ValueError("Model must have positive number of layers")
-
-    if model_config.hidden_dim <= 0:
-        raise ValueError("Model must have positive hidden dimension")
-
-    if model_config.num_heads <= 0:
-        raise ValueError("Model must have positive number of heads")
-
-    if model_config.hidden_dim % model_config.num_heads != 0:
-        raise ValueError("Hidden dimension must be divisible by number of heads")
-
-    if model_config.num_kv_heads and model_config.num_kv_heads > model_config.num_heads:
-        raise ValueError("KV heads cannot exceed total heads")
-
-
-def validate_gpu_compatibility(gpu_name: str, precision: str) -> None:
-    """
-    Validate GPU compatibility with precision.
-
-    Args:
-        gpu_name: GPU model name
-        precision: Model precision
-
-    Raises:
-        ValueError: If combination is not supported
-    """
-    try:
-        get_precision_tflops(gpu_name, precision)
-    except ValueError as e:
-        raise ValueError(f"GPU {gpu_name} does not support {precision} precision: {e}")
+    return combinations
 
 
 def infer_precision_from_config(config: dict) -> str:

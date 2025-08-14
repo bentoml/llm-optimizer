@@ -27,7 +27,7 @@ try:
     history_file = os.path.expanduser('~/.llm_optimizer_history')
     try:
         readline.read_history_file(history_file)
-    except FileNotFoundError:
+    except (FileNotFoundError, PermissionError):
         pass
 
     def save_history():

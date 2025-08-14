@@ -120,7 +120,7 @@ def get_precision_tflops(gpu_name: str, precision: str) -> float:
 
     Args:
         gpu_name: Name of the GPU (case-insensitive)
-        precision: Either "fp16" or "fp8"
+        precision: "bf16", "fp16" or "fp8"
 
     Returns:
         TFLOPS value for the precision
@@ -130,7 +130,7 @@ def get_precision_tflops(gpu_name: str, precision: str) -> float:
     """
     specs = get_gpu_specs(gpu_name)
 
-    if precision == "fp16":
+    if precision in ("fp16", "bf16"):
         return specs["FP16_TFLOPS"]
     elif precision == "fp8":
         if specs["FP8_TFLOPS"] is None:

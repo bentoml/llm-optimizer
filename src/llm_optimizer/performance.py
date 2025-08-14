@@ -1185,7 +1185,7 @@ def run_performance_estimation(params: PerformanceEstimationParams) -> tuple[Per
             generate_advanced_tuning_configs,
             generate_llm_optimizer_commands,
             generate_simple_tuning_configs,
-            get_framework_tuning_configs,
+            generate_tuning_configs,
         )
 
         # Use constrained result if available, otherwise best throughput
@@ -1261,7 +1261,7 @@ def run_performance_estimation(params: PerformanceEstimationParams) -> tuple[Per
                 }
             else:
                 # For latency optimization, use traditional approach with multiple configs
-                tuning_configs = get_framework_tuning_configs(
+                tuning_configs = generate_tuning_configs(
                     framework=fw,
                     num_gpus=updated_params.num_gpus,
                     gpu_name=updated_params.gpu,
