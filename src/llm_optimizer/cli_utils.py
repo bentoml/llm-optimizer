@@ -323,11 +323,14 @@ def collect_interactive_parameters():
         choices=["sglang", "vllm", "both"]
     )
 
-    # Ask about command generation
-    click.echo("\n📋 Command Generation")
-    generate_commands = friendly_confirm(
-        "Generate llm-optimizer tuning commands?",
-        default=True
+    # Get dataset selection
+    click.echo("\n📊 Dataset Selection")
+    click.echo("• random: Generate synthetic prompts with specified input/output lengths")
+    click.echo("• sharegpt: Use real conversational data from ShareGPT dataset")
+    dataset = friendly_prompt(
+        "Dataset type",
+        default="random",
+        choices=["random", "sharegpt"]
     )
 
     return {
@@ -338,7 +341,7 @@ def collect_interactive_parameters():
         "constraints": constraints,
         "precision": precision,
         "framework": framework,
-        "generate_commands": generate_commands
+        "dataset": dataset,
     }
 
 

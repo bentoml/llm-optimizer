@@ -17,6 +17,7 @@ def generate_llm_optimizer_commands(
     host: str = "127.0.0.1",
     output_dir: str = "tuning_results",
     constraints: str = None,
+    dataset: str = "random",
 ) -> list[str]:
     """
     Generate llm-optimizer CLI commands using args.py format.
@@ -30,6 +31,7 @@ def generate_llm_optimizer_commands(
         host: Server host
         output_dir: Output directory for results
         constraints: SLO constraints string to include in commands
+        dataset: Dataset type ('random' or 'sharegpt')
 
     Returns:
         List of CLI commands to run
@@ -50,13 +52,23 @@ def generate_llm_optimizer_commands(
         if config.server_args_str.strip():
             cmd_parts.append(f'--server-args "{config.server_args_str}"')
 
-        # Build client args with fixed parameters
+        # Build client args with dataset-specific parameters
         fixed_client_args = [
             "num_prompts=1000",
-            "dataset_name=sharegpt",
-            f"random_input={input_length}",
-            f"random_output={output_length}",
+            f"dataset_name={dataset}",
         ]
+
+        # Add dataset-specific length arguments
+        if dataset == "random":
+            fixed_client_args.extend([
+                f"random_input_len={input_length}",
+                f"random_output_len={output_length}",
+                "random_range_ratio=0.95",
+            ])
+        elif dataset == "sharegpt":
+            fixed_client_args.extend([
+                f"sharegpt_output_len={output_length}",
+            ])
 
         # Combine fixed and tunable client args
         if config.client_args_str.strip():

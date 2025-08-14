@@ -464,7 +464,10 @@ def visualize(data_file, config, port):
 )
 @click.option("--interactive", is_flag=True, help="Run in interactive mode")
 @click.option(
-    "--generate-commands", is_flag=True, help="Generate llm-optimizer tuning commands"
+    "--dataset",
+    type=click.Choice(["random", "sharegpt"]),
+    default="random",
+    help="Dataset to use for benchmarking (default: random)"
 )
 def estimate_performance(
     model,
@@ -477,7 +480,7 @@ def estimate_performance(
     constraints,
     target,
     interactive,
-    generate_commands,
+    dataset,
 ):
     """Estimate LLM performance and suggest optimal configurations."""
 
@@ -505,7 +508,7 @@ def estimate_performance(
             constraints = constraints or interactive_params["constraints"]
             precision = precision or interactive_params["precision"]
             framework = framework or interactive_params["framework"]
-            generate_commands = generate_commands or interactive_params["generate_commands"]
+            dataset = dataset or interactive_params["dataset"]
 
         # GPU configuration (both modes may need this)
         if interactive or not gpu or not num_gpus:
@@ -526,7 +529,7 @@ def estimate_performance(
             framework=framework,
             constraints=constraints,
             target=target,
-            generate_commands=generate_commands
+            dataset=dataset,
         )
 
         # Run common estimation function

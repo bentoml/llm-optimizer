@@ -1071,7 +1071,7 @@ class PerformanceEstimationParams:
     framework: str = "both"
     constraints: Optional[str] = None
     target: str = "throughput"
-    generate_commands: bool = False
+    dataset: str = "random"
 
 
 @dataclass
@@ -1124,7 +1124,7 @@ def run_performance_estimation(params: PerformanceEstimationParams) -> tuple[Per
         framework=params.framework,
         constraints=params.constraints,
         target=params.target,
-        generate_commands=params.generate_commands,
+        dataset=params.dataset,
     )
 
     # Parse constraints if provided
@@ -1178,114 +1178,115 @@ def run_performance_estimation(params: PerformanceEstimationParams) -> tuple[Per
         if not constrained_result:
             raise ValueError("Cannot satisfy the given constraints with this configuration")
 
-    # Generate tuning configurations if requested
-    tuning_commands = None
-    if updated_params.generate_commands:
-        from llm_optimizer.tuning import (
-            generate_advanced_tuning_configs,
-            generate_llm_optimizer_commands,
-            generate_simple_tuning_configs,
-            generate_tuning_configs,
-        )
+    # Generate tuning configurations
+    from llm_optimizer.tuning import (
+        generate_advanced_tuning_configs,
+        generate_llm_optimizer_commands,
+        generate_simple_tuning_configs,
+        generate_tuning_configs,
+    )
 
-        # Use constrained result if available, otherwise best throughput
-        reference_concurrency = optimal_concurrency
-        if constrained_result:
-            reference_concurrency = constrained_result.concurrency
-        elif updated_params.target == "latency" and best_configs["best_latency"]:
-            reference_concurrency = best_configs["best_latency"].concurrency
-        elif best_configs["best_output_throughput"]:
-            reference_concurrency = best_configs["best_output_throughput"].concurrency
+    # Use constrained result if available, otherwise best throughput
+    reference_concurrency = optimal_concurrency
+    if constrained_result:
+        reference_concurrency = constrained_result.concurrency
+    elif updated_params.target == "latency" and best_configs["best_latency"]:
+        reference_concurrency = best_configs["best_latency"].concurrency
+    elif best_configs["best_output_throughput"]:
+        reference_concurrency = best_configs["best_output_throughput"].concurrency
 
-        target_throughput = updated_params.target == "throughput"
-        frameworks_to_test = (
-            ["sglang", "vllm"] if updated_params.framework == "both" else [updated_params.framework]
-        )
+    target_throughput = updated_params.target == "throughput"
+    frameworks_to_test = (
+        ["sglang", "vllm"] if updated_params.framework == "both" else [updated_params.framework]
+    )
 
-        tuning_commands = {
-            "simple": {},
-            "advanced": {}
-        }
+    tuning_commands = {
+        "simple": {},
+        "advanced": {}
+    }
 
-        for fw in frameworks_to_test:
-            # Use two-stage tuning approach for throughput optimization
-            if parsed_constraints or (target_throughput and updated_params.target == "throughput"):
-                # Stage 1: Simple tuning (concurrency + TP/DP only)
-                simple_configs = generate_simple_tuning_configs(
-                    framework=fw,
-                    num_gpus=updated_params.num_gpus,
-                    gpu_name=updated_params.gpu,
-                    model_config=model_config,
-                    optimal_concurrency=reference_concurrency,
-                    precision=updated_params.precision,
-                    sequence_length=updated_params.input_len,
-                )
+    for fw in frameworks_to_test:
+        # Use two-stage tuning approach for throughput optimization
+        if parsed_constraints or (target_throughput and updated_params.target == "throughput"):
+            # Stage 1: Simple tuning (concurrency + TP/DP only)
+            simple_configs = generate_simple_tuning_configs(
+                framework=fw,
+                num_gpus=updated_params.num_gpus,
+                gpu_name=updated_params.gpu,
+                model_config=model_config,
+                optimal_concurrency=reference_concurrency,
+                precision=updated_params.precision,
+                sequence_length=updated_params.input_len,
+            )
 
-                simple_commands = generate_llm_optimizer_commands(
-                    configs=simple_configs,
-                    model_id=updated_params.model,
-                    input_length=updated_params.input_len,
-                    output_length=updated_params.output_len,
-                    num_gpus=updated_params.num_gpus,
-                    constraints=updated_params.constraints,
-                )
+            simple_commands = generate_llm_optimizer_commands(
+                configs=simple_configs,
+                model_id=updated_params.model,
+                input_length=updated_params.input_len,
+                output_length=updated_params.output_len,
+                num_gpus=updated_params.num_gpus,
+                constraints=updated_params.constraints,
+                dataset=updated_params.dataset,
+            )
 
-                tuning_commands["simple"][fw] = {
-                    "configs": simple_configs,
-                    "commands": simple_commands
-                }
+            tuning_commands["simple"][fw] = {
+                "configs": simple_configs,
+                "commands": simple_commands
+            }
 
-                # Stage 2: Advanced tuning (additional server parameters)
-                advanced_configs = generate_advanced_tuning_configs(
-                    framework=fw,
-                    num_gpus=updated_params.num_gpus,
-                    gpu_name=updated_params.gpu,
-                    model_config=model_config,
-                    optimal_concurrency=reference_concurrency,
-                    precision=updated_params.precision,
-                    sequence_length=updated_params.input_len,
-                )
+            # Stage 2: Advanced tuning (additional server parameters)
+            advanced_configs = generate_advanced_tuning_configs(
+                framework=fw,
+                num_gpus=updated_params.num_gpus,
+                gpu_name=updated_params.gpu,
+                model_config=model_config,
+                optimal_concurrency=reference_concurrency,
+                precision=updated_params.precision,
+                sequence_length=updated_params.input_len,
+            )
 
-                advanced_commands = generate_llm_optimizer_commands(
-                    configs=advanced_configs,
-                    model_id=updated_params.model,
-                    input_length=updated_params.input_len,
-                    output_length=updated_params.output_len,
-                    num_gpus=updated_params.num_gpus,
-                    constraints=updated_params.constraints,
-                )
+            advanced_commands = generate_llm_optimizer_commands(
+                configs=advanced_configs,
+                model_id=updated_params.model,
+                input_length=updated_params.input_len,
+                output_length=updated_params.output_len,
+                num_gpus=updated_params.num_gpus,
+                constraints=updated_params.constraints,
+                dataset=updated_params.dataset,
+            )
 
-                tuning_commands["advanced"][fw] = {
-                    "configs": advanced_configs,
-                    "commands": advanced_commands
-                }
-            else:
-                # For latency optimization, use traditional approach with multiple configs
-                tuning_configs = generate_tuning_configs(
-                    framework=fw,
-                    num_gpus=updated_params.num_gpus,
-                    gpu_name=updated_params.gpu,
-                    model_config=model_config,
-                    optimal_concurrency=reference_concurrency,
-                    target_throughput=target_throughput,
-                    precision=updated_params.precision,
-                    sequence_length=updated_params.input_len,
-                )
+            tuning_commands["advanced"][fw] = {
+                "configs": advanced_configs,
+                "commands": advanced_commands
+            }
+        else:
+            # For latency optimization, use traditional approach with multiple configs
+            tuning_configs = generate_tuning_configs(
+                framework=fw,
+                num_gpus=updated_params.num_gpus,
+                gpu_name=updated_params.gpu,
+                model_config=model_config,
+                optimal_concurrency=reference_concurrency,
+                target_throughput=target_throughput,
+                precision=updated_params.precision,
+                sequence_length=updated_params.input_len,
+            )
 
-                commands = generate_llm_optimizer_commands(
-                    configs=tuning_configs,
-                    model_id=updated_params.model,
-                    input_length=updated_params.input_len,
-                    output_length=updated_params.output_len,
-                    num_gpus=updated_params.num_gpus,
-                    constraints=updated_params.constraints,
-                )
+            commands = generate_llm_optimizer_commands(
+                configs=tuning_configs,
+                model_id=updated_params.model,
+                input_length=updated_params.input_len,
+                output_length=updated_params.output_len,
+                num_gpus=updated_params.num_gpus,
+                constraints=updated_params.constraints,
+                dataset=updated_params.dataset,
+            )
 
-                # For latency optimization, put everything in "simple" to maintain compatibility
-                tuning_commands["simple"][fw] = {
-                    "configs": tuning_configs,
-                    "commands": commands
-                }
+            # For latency optimization, put everything in "simple" to maintain compatibility
+            tuning_commands["simple"][fw] = {
+                "configs": tuning_configs,
+                "commands": commands
+            }
 
     result = PerformanceEstimationResult(
         model_config=model_config,
