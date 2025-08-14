@@ -105,6 +105,9 @@ def get_config_id(client_params: dict, server_params: dict) -> str:
 @click.option(
     "--dashboard-port", type=int, default=8080, help="Port to run the dashboard."
 )
+@click.option(
+    "--constraints", type=str, help="SLO constraints (e.g., 'ttft<300ms;itl<8.5ms')"
+)
 @click.pass_context
 def cli(
     ctx,
@@ -124,6 +127,7 @@ def cli(
     host,
     port,
     dashboard_port,
+    constraints,
 ):
     """A CLI tool to optimize LLM performance."""
     if ctx.invoked_subcommand is None:
@@ -145,6 +149,7 @@ def cli(
             host,
             port,
             dashboard_port,
+            constraints,
         )
 
 
@@ -165,9 +170,26 @@ def benchmark(
     host,
     port,
     dashboard_port,
+    constraints,
 ):
     """A CLI tool to optimize LLM performance."""
     import llm_optimizer.bench_client as bench_client
+    from llm_optimizer.performance import (
+        convert_constraints_for_visualization,
+        parse_slo_constraints,
+    )
+
+    # Parse constraints if provided
+    parsed_constraints = []
+    constraints_for_viz = {}
+    if constraints:
+        try:
+            parsed_constraints = parse_slo_constraints(constraints)
+            constraints_for_viz = convert_constraints_for_visualization(parsed_constraints)
+            logger.info(f"Parsed {len(parsed_constraints)} constraint(s): {constraints}")
+        except ValueError as e:
+            logger.error(f"Error parsing constraints: {e}")
+            # Continue without constraints rather than failing
 
     if not server_cmd:
         if not model or not framework:
@@ -305,6 +327,7 @@ def benchmark(
                 "config": benchmark_settings,
                 "results": benchmark_result,
                 "cmd": full_server_cmd,
+                "constraints": constraints_for_viz,
             }
 
             if output_jsonl_path:

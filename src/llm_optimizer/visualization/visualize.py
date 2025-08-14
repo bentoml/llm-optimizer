@@ -93,8 +93,16 @@ class ParetoLLMOptimizer:
                 file_data = json.load(f)
                 if isinstance(file_data, list):
                     data.extend(file_data)
+                    # Extract constraints from the first item that has them
+                    for item in file_data:
+                        if isinstance(item, dict) and "constraints" in item and item["constraints"]:
+                            constraints = item["constraints"]
+                            break
                 else:
                     data.append(file_data)
+                    # Extract constraints if present
+                    if isinstance(file_data, dict) and "constraints" in file_data and file_data["constraints"]:
+                        constraints = file_data["constraints"]
             logger.info(f"Loaded data from {data_file}")
         except Exception as e:
             logger.error(f"Error loading {data_file}: {e}")
