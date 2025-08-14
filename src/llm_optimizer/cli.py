@@ -103,9 +103,6 @@ def get_config_id(client_params: dict, server_params: dict) -> str:
 )
 @click.option("--port", type=int, default=None, help="Server port to connect to.")
 @click.option(
-    "--dashboard-port", type=int, default=8080, help="Port to run the dashboard."
-)
-@click.option(
     "--constraints", type=str, help="SLO constraints (e.g., 'ttft<300ms;itl<8.5ms')"
 )
 @click.pass_context
@@ -126,7 +123,6 @@ def cli(
     ready_endpoint,
     host,
     port,
-    dashboard_port,
     constraints,
 ):
     """A CLI tool to optimize LLM performance."""
@@ -148,7 +144,6 @@ def cli(
             ready_endpoint,
             host,
             port,
-            dashboard_port,
             constraints,
         )
 
@@ -169,7 +164,6 @@ def benchmark(
     ready_endpoint,
     host,
     port,
-    dashboard_port,
     constraints,
 ):
     """A CLI tool to optimize LLM performance."""
@@ -367,10 +361,9 @@ def benchmark(
     logger.info("-" * 80)
     logger.info("All benchmark runs completed.")
 
-    # Auto-visualize if requested and output JSON file exists
+    # Auto-generate HTML visualization if output JSON exists
     if output_json and pathlib.Path(output_json).exists():
         try:
-            logger.info("Opening visualization dashboard...")
             from llm_optimizer.visualization.visualize import ParetoLLMOptimizer
 
             # Create optimizer instance with default config
@@ -381,12 +374,17 @@ def benchmark(
             )
             optimizer = ParetoLLMOptimizer(str(config_path))
 
-            # Generate dashboard and start server
-            optimizer.generate_dashboard(output_json)
-            optimizer.start_server(port=dashboard_port)
+            # Generate HTML with same base name as JSON
+            json_path = pathlib.Path(output_json)
+            html_file = json_path.with_suffix('.html')
+
+            logger.info("Generating visualization dashboard...")
+            optimizer.generate_dashboard(output_json, output_file=str(html_file))
+            logger.info(f"Visualization dashboard saved to {html_file}")
 
         except Exception as e:
-            logger.error(f"Failed to open visualization dashboard: {e}")
+            logger.warning(f"Could not generate visualization dashboard: {e}")
+            # Don't fail the benchmark if visualization fails
 
 
 @cli.command()
@@ -399,8 +397,12 @@ def benchmark(
 @click.option(
     "--config", type=str, default=None, help="Path to visualization config file"
 )
-@click.option("--port", type=int, default=8080, help="Port to run the dashboard server")
-def visualize(data_file, config, port):
+@click.option(
+    "-o", "--output", type=str, default=None, help="Output HTML file path (default: pareto_llm_dashboard.html)"
+)
+@click.option("--serve", is_flag=True, help="Start HTTP server after generating HTML")
+@click.option("--port", type=int, default=8080, help="Port to run the dashboard server (used with --serve)")
+def visualize(data_file, config, output, serve, port):
     """Generate and open visualization dashboard from benchmark results."""
     try:
         from llm_optimizer.visualization.visualize import ParetoLLMOptimizer
@@ -429,12 +431,16 @@ def visualize(data_file, config, port):
 
         # Generate dashboard
         logger.info(f"Generating dashboard from {data_file}...")
-        html_file = optimizer.generate_dashboard(data_file)
+        html_file = optimizer.generate_dashboard(data_file, output_file=output)
         logger.info(f"Dashboard generated: {html_file}")
 
-        # Start server and open browser
-        logger.info(f"Starting server on port {port}...")
-        optimizer.start_server(port=port)
+        # Start server only if requested
+        if serve:
+            logger.info(f"Starting server on port {port}...")
+            optimizer.start_server(port=port)
+        else:
+            logger.info(f"HTML dashboard ready at: {html_file}")
+            logger.info("Use --serve to start a local server and open in browser")
 
     except Exception as e:
         logger.error(f"Failed to generate visualization: {e}")

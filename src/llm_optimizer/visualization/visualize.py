@@ -230,7 +230,7 @@ class ParetoLLMOptimizer:
 
         return html_content
 
-    def generate_dashboard(self, data_file: str) -> str:
+    def generate_dashboard(self, data_file: str, output_file: str = None) -> str:
         """Generate the dashboard HTML file."""
         # Load benchmark data
         data_dict = self.load_benchmark_data(data_file)
@@ -239,7 +239,7 @@ class ParetoLLMOptimizer:
         html_content = self.create_html_page(data_dict)
 
         # Write to file
-        html_file = "pareto_llm_dashboard.html"
+        html_file = output_file if output_file else "pareto_llm_dashboard.html"
         with open(html_file, "w", encoding="utf-8") as f:
             f.write(html_content)
 
