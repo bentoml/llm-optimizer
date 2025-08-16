@@ -123,6 +123,9 @@
       "label": "Mean TTFT",
       "description": "Mean Time To First Token",
       "type": "numerical",
+      "x_axis_type": "inverse",
+      "x_axis_name": "Prefilling Rate",
+      "x_axis_unit": "tokens/s",
       "category": "latency",
       "unit": "ms",
       "field_category": "results"
@@ -147,6 +150,9 @@
       "label": "Mean ITL",
       "description": "Mean Inter-Token Latency",
       "type": "numerical",
+      "x_axis_type": "inverse",
+      "x_axis_name": "Decoding Rate",
+      "x_axis_unit": "tokens/s",
       "category": "latency",
       "unit": "ms",
       "field_category": "results"
@@ -171,6 +177,9 @@
       "label": "Mean E2E Latency",
       "description": "Mean end-to-end latency",
       "type": "numerical",
+      "x_axis_type": "inverse",
+      "x_axis_name": "Token Throughput per User",
+      "x_axis_unit": "tokens/user",
       "category": "latency",
       "unit": "ms",
       "field_category": "results"
