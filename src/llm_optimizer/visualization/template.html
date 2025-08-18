@@ -25,12 +25,56 @@
         const fieldOptions = {field_options_json};
         const fieldCategories = {field_categories_json};
         const defaults = {defaults_json};
-        
+
         const colors = [
             '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe',
             '#00f2fe', '#43e97b', '#38f9d7', '#fa709a', '#fee140'
         ];
-        
+
+        // Constraint configuration for custom constraints
+        const CONSTRAINT_FIELDS = {
+            'ttft': {
+                label: 'TTFT',
+                description: 'Time To First Token',
+                options: [
+                    { value: 'mean_ttft_ms', label: 'Mean TTFT' },
+                    { value: 'median_ttft_ms', label: 'Median TTFT' },
+                    { value: 'p99_ttft_ms', label: 'P99 TTFT' }
+                ]
+            },
+            'itl': {
+                label: 'ITL',
+                description: 'Inter-Token Latency',
+                options: [
+                    { value: 'mean_itl_ms', label: 'Mean ITL' },
+                    { value: 'median_itl_ms', label: 'Median ITL' },
+                    { value: 'p99_itl_ms', label: 'P99 ITL' }
+                ]
+            },
+            'e2e': {
+                label: 'E2E',
+                description: 'End-to-End Latency',
+                options: [
+                    { value: 'mean_e2e_latency_ms', label: 'Mean E2E' },
+                    { value: 'median_e2e_latency_ms', label: 'Median E2E' },
+                    { value: 'p99_e2e_latency_ms', label: 'P99 E2E' }
+                ]
+            }
+        };
+
+        const OPERATORS = [
+            { value: '<=', label: '≤ (at most)', description: 'Value must be less than or equal to' },
+            { value: '>=', label: '≥ (at least)', description: 'Value must be greater than or equal to' },
+            { value: '<', label: '< (less than)', description: 'Value must be strictly less than' },
+            { value: '>', label: '> (greater than)', description: 'Value must be strictly greater than' }
+        ];
+
+        // Get relevant operators for a metric type
+        function getRelevantOperators(metricName) {
+            // All constraint fields are latency metrics, so only show < and <= operators
+            return OPERATORS.filter(op => op.value === '<' || op.value === '<=');
+        }
+
         function getParetoPoints(points) {
             const result = [];
             for (let i = 0; i < points.length; i++) {
@@ -47,9 +91,10 @@
             }
             return result;
         }
-        
-        function checkConstraints(point) {
-            if (!constraints || (Array.isArray(constraints) && constraints.length === 0)) return false;
+
+        function checkConstraints(point, dynamicConstraints) {
+            const constraintsToCheck = dynamicConstraints || constraints;
+            if (!constraintsToCheck || (Array.isArray(constraintsToCheck) && constraintsToCheck.length === 0)) return false;
             const getVal = (p, name) => {
                 const src = p && typeof p === 'object' ? (p._raw || p) : {};
                 return src[name];
@@ -66,8 +111,8 @@
                     default: return true; // unknown op -> ignore
                 }
             };
-            if (Array.isArray(constraints)) {
-                return constraints.every(c => {
+            if (Array.isArray(constraintsToCheck)) {
+                return constraintsToCheck.every(c => {
                     if (!c || c.name == null) return true;
                     const lhs = Number(getVal(point, c.name));
                     const rhs = Number(c.value);
@@ -76,7 +121,7 @@
                 });
             }
             // Backward compatibility: object map {field: min}
-            for (const [field, minVal] of Object.entries(constraints)) {
+            for (const [field, minVal] of Object.entries(constraintsToCheck)) {
                 const lhs = Number(getVal(point, field));
                 const rhs = Number(minVal);
                 if (Number.isNaN(lhs) || Number.isNaN(rhs)) return false;
@@ -84,7 +129,20 @@
             }
             return true;
         }
-        
+
+        // Helper function to get field labels for constraints
+        function getFieldLabel(fieldName) {
+            const field = config.fields?.[fieldName];
+            if (field) return field.label;
+
+            // Fallback to constraint field mapping
+            for (const group of Object.values(CONSTRAINT_FIELDS)) {
+                const option = group.options.find(opt => opt.value === fieldName);
+                if (option) return option.label;
+            }
+            return fieldName;
+        }
+
         function addConstraintLines(traces, xAxis, yAxis, transformedData) {
             if (!constraints) return;
             for (const [field, rawVal] of Object.entries(constraints)) {
@@ -221,6 +279,74 @@
             return [String(constraints)];
         }
 
+        // AddConstraintForm component for adding custom constraints
+        function AddConstraintForm({ onAdd, onCancel }) {
+            const [metric, setMetric] = useState('mean_ttft_ms');
+            const [operator, setOperator] = useState('<=');
+            const [value, setValue] = useState('');
+            const [error, setError] = useState('');
+
+            const relevantOperators = getRelevantOperators(metric);
+
+            const handleAdd = () => {
+                const numValue = parseFloat(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                    setError('Please enter a valid positive number');
+                    return;
+                }
+
+                const constraint = { name: metric, op: operator, value: numValue };
+                onAdd(constraint);
+                onCancel();
+            };
+
+            return React.createElement('div', { className: 'border border-blue-300 rounded-lg p-3 bg-blue-50 space-y-3' }, [
+                React.createElement('div', { key: 'title', className: 'text-sm font-medium text-blue-900' }, 'Add Constraint'),
+                React.createElement('div', { key: 'form', className: 'flex flex-wrap gap-2 items-end' }, [
+                    // Metric dropdown
+                    React.createElement('select', {
+                        value: metric,
+                        onChange: e => setMetric(e.target.value),
+                        className: 'text-xs border border-gray-300 rounded px-2 py-1'
+                    }, Object.values(CONSTRAINT_FIELDS).flatMap(group =>
+                        group.options.map(opt =>
+                            React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
+                        )
+                    )),
+                    // Operator dropdown
+                    React.createElement('select', {
+                        value: operator,
+                        onChange: e => setOperator(e.target.value),
+                        className: 'text-xs border border-gray-300 rounded px-2 py-1'
+                    }, relevantOperators.map(op =>
+                        React.createElement('option', { key: op.value, value: op.value }, op.label)
+                    )),
+                    // Value input
+                    React.createElement('div', { className: 'flex items-center' }, [
+                        React.createElement('input', {
+                            type: 'number',
+                            value: value,
+                            onChange: e => setValue(e.target.value),
+                            placeholder: '300',
+                            className: 'text-xs border border-gray-300 rounded px-2 py-1 w-20'
+                        }),
+                        React.createElement('span', { className: 'text-xs text-gray-600 ml-1' }, 'ms')
+                    ])
+                ]),
+                error && React.createElement('div', { key: 'error', className: 'text-xs text-red-600' }, error),
+                React.createElement('div', { key: 'buttons', className: 'flex gap-2' }, [
+                    React.createElement('button', {
+                        onClick: onCancel,
+                        className: 'text-xs px-3 py-1 border border-gray-300 rounded hover:bg-gray-50'
+                    }, 'Cancel'),
+                    React.createElement('button', {
+                        onClick: handleAdd,
+                        className: 'text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600'
+                    }, 'Add')
+                ])
+            ]);
+        }
+
         function useTransformedData(data, xAxis, yAxis) {
             return useMemo(() => {
                 return data
@@ -238,7 +364,7 @@
             }, [data, xAxis, yAxis]);
         }
 
-        function Chart({ dataset, xAxis, yAxis, showLines, showPoints, onSelect }) {
+        function Chart({ dataset, xAxis, yAxis, showLines, showPoints, onSelect, constraints: dynamicConstraints }) {
             const ref = useRef(null);
             useEffect(() => {
                 if (!dataset || dataset.length === 0) {
@@ -269,7 +395,7 @@
                 }
                 if (showPoints) {
                     if (paretoData.length) {
-                        const withC = paretoData.map(d => ({ d, ok: checkConstraints(d) }));
+                        const withC = paretoData.map(d => ({ d, ok: checkConstraints(d, dynamicConstraints) }));
                         const sat = withC.filter(p => p.ok).map(({ d }) => d);
                         const uns = withC.filter(p => !p.ok).map(({ d }) => d);
                         if (sat.length) series.push({
@@ -277,18 +403,18 @@
                             zlevel: 3,
                             itemStyle: { color: '#10b981', borderColor: '#a7f3d0', borderWidth: 2 },
                             emphasis: { scale: 1.15, focus: 'series' },
-                            tooltip: { 
-                                trigger: 'item', 
-                                backgroundColor: 'rgba(0,0,0,0)', 
-                                borderWidth: 0, 
+                            tooltip: {
+                                trigger: 'item',
+                                backgroundColor: 'rgba(0,0,0,0)',
+                                borderWidth: 0,
                                 padding: 0,
                                 extraCssText: 'background: linear-gradient(180deg, #22c55e 0%, #065f46 85%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff;',
-                                formatter: (p) => { 
-                                    const m = p.data && p.data.__meta; 
-                                    const txt = m ? generateHoverText(m.point) : ''; 
-                                    const title = '<span style=\'color:#dcfce7;font-weight:800\'>Pareto ✓ (constraints)</span>'; 
-                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`; 
-                                } 
+                                formatter: (p) => {
+                                    const m = p.data && p.data.__meta;
+                                    const txt = m ? generateHoverText(m.point) : '';
+                                    const title = '<span style=\'color:#dcfce7;font-weight:800\'>Pareto ✓ (constraints)</span>';
+                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
+                                }
                             },
                             z: 3,
                             data: sat.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._raw || d) } }))
@@ -297,18 +423,18 @@
                             type: 'scatter', name: 'Pareto', symbolSize: 13,
                             itemStyle: { color: '#0284c7', borderColor: '#fff', borderWidth: 2 },
                             emphasis: { scale: 1.05, focus: 'series' },
-                            tooltip: { 
-                                trigger: 'item', 
-                                backgroundColor: 'rgba(0,0,0,0)', 
-                                borderWidth: 0, 
+                            tooltip: {
+                                trigger: 'item',
+                                backgroundColor: 'rgba(0,0,0,0)',
+                                borderWidth: 0,
                                 padding: 0,
                                 extraCssText: 'background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 35%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff;',
-                                formatter: (p) => { 
-                                    const m = p.data && p.data.__meta; 
-                                    const txt = m ? generateHoverText(m.point) : ''; 
-                                    const title = '<span style=\'color:#eafff7;font-weight:800\'>Pareto</span>'; 
-                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`; 
-                                } 
+                                formatter: (p) => {
+                                    const m = p.data && p.data.__meta;
+                                    const txt = m ? generateHoverText(m.point) : '';
+                                    const title = '<span style=\'color:#eafff7;font-weight:800\'>Pareto</span>';
+                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
+                                }
                             },
                             z: 2,
                             data: uns.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._raw || d) } }))
@@ -319,12 +445,12 @@
                         itemStyle: { color: '#94a3b8', borderColor: '#64748b', borderWidth: 1 },
                         emphasis: { scale: 1.05, focus: 'series' },
                         tooltip: {
-                            trigger: 'item', 
-                            backgroundColor: 'rgba(0,0,0,0)', 
-                            borderWidth: 0, 
+                            trigger: 'item',
+                            backgroundColor: 'rgba(0,0,0,0)',
+                            borderWidth: 0,
                             padding: 0,
                             extraCssText: 'background: linear-gradient(180deg, #9ca3af 0%, #374151 90%, #1F2937 100%);border-radius: 10px; padding: 12px; color: #ffffff;',
-                            formatter: (p) => { const m = p.data && p.data.__meta; const txt = m ? generateHoverText(m.point) : ''; const label = '<span style=\'color:#ffffff;font-weight:700\'>Non‑Pareto</span>'; return `<div style=\'color:#ffffff;max-width:320px\'>${label}<div style=\'margin-top:6px;\'>${txt}</div></div>`; } 
+                            formatter: (p) => { const m = p.data && p.data.__meta; const txt = m ? generateHoverText(m.point) : ''; const label = '<span style=\'color:#ffffff;font-weight:700\'>Non‑Pareto</span>'; return `<div style=\'color:#ffffff;max-width:320px\'>${label}<div style=\'margin-top:6px;\'>${txt}</div></div>`; }
                         },
                         z: 1,
                         data: nonParetoData.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._raw || d) } }))
@@ -361,12 +487,12 @@
                     if (ro) ro.disconnect();
                     chart.dispose();
                 };
-            }, [dataset, xAxis, yAxis, showLines, showPoints]);
+            }, [dataset, xAxis, yAxis, showLines, showPoints, dynamicConstraints]);
 
             return React.createElement('div', { ref, className: 'w-full h-[65vh] min-h-[420px] overflow-visible' });
         }
 
-        function Controls({ xAxis, yAxis, showLines, showPoints, onChange, fieldOptions }) {
+        function Controls({ xAxis, yAxis, showLines, showPoints, onChange, fieldOptions, customConstraints, setCustomConstraints, showAddForm, setShowAddForm, disabledOriginalConstraints, setDisabledOriginalConstraints }) {
             function selectOptions(id) {
                 const groups = [];
                 Object.entries(fieldOptions).forEach(([categoryId, categoryInfo]) => {
@@ -414,11 +540,68 @@
                     ]),
 
                     // Constraints (left of Display)
-                    React.createElement('div', { key: 'csInline', className: 'flex flex-col md:col-span-2 min-w-0' }, [
-                        React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-700 font-semibold' }, 'Constraints'),
-                        React.createElement('ul', { className: 'list-disc pl-4 mt-2 text-[14px] text-slate-600 max-h-16 overflow-auto pr-1 break-words space-y-0.5' },
-                            formatConstraintsList().map((t, i) => React.createElement('li', { key: `cs-inline-${i}` }, t))
-                        )
+                    React.createElement('div', { key: 'constraints', className: 'flex flex-col md:col-span-2 min-w-0' }, [
+                        React.createElement('div', { key: 'header', className: 'flex items-center justify-between mb-2' }, [
+                            React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-700 font-semibold' }, 'Constraints'),
+                            React.createElement('button', {
+                                onClick: () => setShowAddForm(!showAddForm),
+                                className: 'text-xs bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600 transition-colors'
+                            }, showAddForm ? 'Cancel' : '+ Add')
+                        ]),
+
+                        // Add constraint form (when active)
+                        showAddForm && React.createElement(AddConstraintForm, {
+                            key: 'addForm',
+                            onAdd: (constraint) => {
+                                setCustomConstraints(prev => [...prev, constraint]);
+                                setShowAddForm(false);
+                            },
+                            onCancel: () => setShowAddForm(false)
+                        }),
+
+                        // Constraint list
+                        React.createElement('div', { key: 'list', className: 'space-y-1 text-xs max-h-20 overflow-y-auto' }, [
+                            // Original constraints (now removable)
+                            formatConstraintsList(constraints).length > 0 && [
+                                React.createElement('div', { key: 'origLabel', className: 'text-gray-500 font-medium' }, '📊 From Benchmark:'),
+                                ...formatConstraintsList(constraints).map((t, i) => {
+                                    const isDisabled = disabledOriginalConstraints.includes(i);
+                                    return React.createElement('div', { key: `orig-${i}`, className: `flex items-center justify-between px-2 py-1 rounded pl-4 ${isDisabled ? 'bg-gray-100 text-gray-400 line-through' : 'bg-gray-50 text-gray-600'}` }, [
+                                        React.createElement('span', { key: 'text' }, t),
+                                        React.createElement('button', {
+                                            key: 'remove',
+                                            onClick: () => {
+                                                if (isDisabled) {
+                                                    // Re-enable constraint
+                                                    setDisabledOriginalConstraints(prev => prev.filter(idx => idx !== i));
+                                                } else {
+                                                    // Disable constraint
+                                                    setDisabledOriginalConstraints(prev => [...prev, i]);
+                                                }
+                                            },
+                                            className: `ml-2 rounded px-1 ${isDisabled ? 'text-green-500 hover:text-green-700 hover:bg-green-100' : 'text-red-500 hover:text-red-700 hover:bg-red-100'}`
+                                        }, isDisabled ? '↻' : '×')
+                                    ]);
+                                })
+                            ],
+                            // Custom constraints (removable)
+                            customConstraints.length > 0 && [
+                                React.createElement('div', { key: 'customLabel', className: 'text-blue-700 font-medium mt-2' }, '✏️ Custom:'),
+                                ...customConstraints.map((c, i) =>
+                                    React.createElement('div', { key: `custom-${i}`, className: 'flex items-center justify-between bg-blue-100 px-2 py-1 rounded pl-4' }, [
+                                        React.createElement('span', { key: 'text' }, `${getFieldLabel(c.name)} ${c.op} ${c.value}ms`),
+                                        React.createElement('button', {
+                                            key: 'remove',
+                                            onClick: () => setCustomConstraints(prev => prev.filter((_, idx) => idx !== i)),
+                                            className: 'text-red-500 hover:text-red-700 ml-2 hover:bg-red-100 rounded px-1'
+                                        }, '×')
+                                    ])
+                                )
+                            ],
+                            // Empty state
+                            (formatConstraintsList(constraints).length === 0 && customConstraints.length === 0) &&
+                                React.createElement('div', { key: 'empty', className: 'text-gray-500 italic text-center py-2' }, 'No constraints')
+                        ])
                     ]),
 
                     // Display
@@ -586,6 +769,63 @@
             const [showPoints, setShowPoints] = useState(defaults?.showPoints ?? true);
             const [selectedPoint, setSelectedPoint] = useState(null);
 
+            // Custom constraints state management
+            const [customConstraints, setCustomConstraints] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('llm-optimizer-custom-constraints');
+                    return saved ? JSON.parse(saved) : [];
+                } catch (e) {
+                    return [];
+                }
+            });
+            const [showAddForm, setShowAddForm] = useState(false);
+
+            // Track which original constraints are disabled
+            const [disabledOriginalConstraints, setDisabledOriginalConstraints] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('llm-optimizer-disabled-constraints');
+                    return saved ? JSON.parse(saved) : [];
+                } catch (e) {
+                    return [];
+                }
+            });
+
+            // Save to localStorage whenever customConstraints change
+            useEffect(() => {
+                try {
+                    localStorage.setItem('llm-optimizer-custom-constraints', JSON.stringify(customConstraints));
+                } catch (e) {
+                    console.warn('Failed to save constraints to localStorage:', e);
+                }
+            }, [customConstraints]);
+
+            // Save to localStorage whenever disabledOriginalConstraints change
+            useEffect(() => {
+                try {
+                    localStorage.setItem('llm-optimizer-disabled-constraints', JSON.stringify(disabledOriginalConstraints));
+                } catch (e) {
+                    console.warn('Failed to save disabled constraints to localStorage:', e);
+                }
+            }, [disabledOriginalConstraints]);
+
+            // Merge original and custom constraints, excluding disabled ones
+            const effectiveConstraints = useMemo(() => {
+                const original = constraints || [];
+                const custom = customConstraints || [];
+
+                // Filter out disabled original constraints
+                let enabledOriginal = [];
+                if (Array.isArray(original)) {
+                    enabledOriginal = original.filter((constraint, index) =>
+                        !disabledOriginalConstraints.includes(index)
+                    );
+                } else if (original && !disabledOriginalConstraints.includes(0)) {
+                    enabledOriginal = [original];
+                }
+
+                return [...enabledOriginal, ...custom];
+            }, [customConstraints, disabledOriginalConstraints]);
+
             const dataset = useTransformedData(data, xAxis, yAxis);
 
             return React.createElement('div', { className: 'flex flex-col w-screen min-h-screen' }, [
@@ -602,9 +842,9 @@
                 React.createElement('main', { key: 'm', className: 'flex-1 overflow-visible max-w-full' }, [
                     React.createElement('div', { key: 'container', className: 'max-w-[1400px] mx-auto w-full p-5 flex flex-col gap-4' }, [
                         React.createElement('section', { key: 'hero', className: 'min-h-[78vh] flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4' }, [
-                            React.createElement(Controls, { key: 'ctrl', xAxis, yAxis, showLines, showPoints, fieldOptions, onChange: (c) => { if (c.xAxis !== undefined) setXAxis(c.xAxis); if (c.yAxis !== undefined) setYAxis(c.yAxis); if (c.showLines !== undefined) setShowLines(c.showLines); if (c.showPoints !== undefined) setShowPoints(c.showPoints); } }),
+                            React.createElement(Controls, { key: 'ctrl', xAxis, yAxis, showLines, showPoints, fieldOptions, customConstraints, setCustomConstraints, showAddForm, setShowAddForm, disabledOriginalConstraints, setDisabledOriginalConstraints, onChange: (c) => { if (c.xAxis !== undefined) setXAxis(c.xAxis); if (c.yAxis !== undefined) setYAxis(c.yAxis); if (c.showLines !== undefined) setShowLines(c.showLines); if (c.showPoints !== undefined) setShowPoints(c.showPoints); } }),
                             React.createElement('div', { key: 'chartWrap', className: 'w-full' }, [
-                                React.createElement(Chart, { key: 'c', dataset, xAxis, yAxis, showLines, showPoints, onSelect: (pt) => setSelectedPoint(pt) })
+                                React.createElement(Chart, { key: 'c', dataset, xAxis, yAxis, showLines, showPoints, constraints: effectiveConstraints, onSelect: (pt) => setSelectedPoint(pt) })
                             ])
                         ]),
                         React.createElement('div', { key: 'tableWrap', className: 'overflow-visible' }, [
