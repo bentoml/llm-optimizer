@@ -190,12 +190,153 @@ def generate_tp_dp_combinations(num_gpus: int, min_tp_size: int = 1) -> list[tup
     return combinations
 
 
-def infer_precision_from_config(config: dict) -> str:
+def calculate_model_parameters_from_config(config: dict) -> int:
     """
-    Infer model precision from HuggingFace config.
+    Calculate the total number of parameters from model config.
 
     Args:
         config: HuggingFace model config dictionary
+
+    Returns:
+        Total number of parameters (int)
+    """
+    try:
+        # Extract parameters needed for calculation
+        h = config["hidden_size"]
+        n_layers = config["num_hidden_layers"]
+        i = config["intermediate_size"]
+        v = config["vocab_size"]
+        n_heads = config.get("num_attention_heads", 0)
+        n_kv_heads = config.get("num_key_value_heads", n_heads)
+
+        # Calculate params per layer
+        head_dim = h // n_heads if n_heads > 0 else 0
+        attention_params = n_layers * (
+            h * (n_heads * head_dim) + h * (n_kv_heads * head_dim) * 2 + h * h
+        )
+
+        # FFN params (assuming SwiGLU)
+        ffn_params = n_layers * (h * i * 2 + i * h)
+
+        # Embedding and output params
+        embedding_params = v * h
+        output_params = v * h if not config.get("tie_word_embeddings", False) else 0
+
+        total_params = attention_params + ffn_params + embedding_params + output_params
+        return total_params
+
+    except KeyError:
+        # If we can't calculate from config, return 0
+        return 0
+
+
+def get_safetensor_total_size(model_id: str) -> Optional[int]:
+    """
+    Calculate total size of all safetensor files for a model.
+
+    Args:
+        model_id: HuggingFace model identifier
+
+    Returns:
+        Total size in bytes, or None if cannot determine
+    """
+    try:
+        from huggingface_hub import list_repo_files
+
+        # Get all files in the repo
+        files = list_repo_files(repo_id=model_id)
+
+        # Find all safetensor files
+        safetensor_files = [f for f in files if f.endswith('.safetensors')]
+
+        if not safetensor_files:
+            return None
+
+        total_size = 0
+
+        for file_path in safetensor_files:
+            try:
+                # Download just the file info to get size
+                from huggingface_hub import get_hf_file_metadata, hf_hub_url
+                url = hf_hub_url(repo_id=model_id, filename=file_path)
+                metadata = get_hf_file_metadata(url)
+
+                if hasattr(metadata, 'size') and metadata.size:
+                    total_size += metadata.size
+                else:
+                    # Fallback: try to get size from repo info
+                    from huggingface_hub import repo_info
+                    info = repo_info(repo_id=model_id)
+                    if info.siblings:
+                        for sibling in info.siblings:
+                            if sibling.rfilename == file_path and sibling.size:
+                                total_size += sibling.size
+                                break
+
+            except Exception:
+                # Skip files we can't get size for
+                continue
+
+        return total_size if total_size > 0 else None
+
+    except Exception:
+        # If any step fails, return None
+        return None
+
+
+def infer_precision_from_model_size(config: dict, model_id: str) -> Optional[str]:
+    """
+    Infer precision from parameter count and total model size.
+
+    This calculates bytes per parameter and estimates precision:
+    - ~1 bytes/param: fp8
+    - ~2 bytes/param: fp16/bf16
+    - ~4 bytes/param: fp32
+
+    Args:
+        config: HuggingFace model config dictionary
+        model_id: Model identifier for downloading size info
+
+    Returns:
+        Inferred precision string or None if cannot determine
+    """
+    if not model_id:
+        return None
+
+    # Calculate parameter count from config
+    total_params = calculate_model_parameters_from_config(config)
+    if total_params == 0:
+        return None
+
+    # Get total safetensor size
+    total_size_bytes = get_safetensor_total_size(model_id)
+    if total_size_bytes is None:
+        return None
+
+    # Calculate bytes per parameter
+    bytes_per_param = total_size_bytes / total_params
+
+    # Infer precision based on bytes per parameter
+    # Add some tolerance for overhead, compression, etc.
+    if bytes_per_param <= 1.3:  # ~1 byte per param + tolerance
+        return "fp8"
+    elif bytes_per_param <= 2.5:  # ~2 bytes per param + tolerance
+        # Default to bf16 for modern models, fp16 for older ones
+        return "bf16"
+    elif bytes_per_param <= 4.5:  # ~4 bytes per param
+        return "fp32"  # Though we don't typically use this
+    else:
+        # Unexpectedly large, might be fp64 or have significant overhead
+        return None
+
+
+def infer_precision_from_config(config: dict, model_id: str = None) -> str:
+    """
+    Infer model precision from HuggingFace config and model ID.
+
+    Args:
+        config: HuggingFace model config dictionary
+        model_id: Original model ID/path (used for name-based inference)
 
     Returns:
         str: Inferred precision ("fp16", "bf16", or "fp8")
@@ -244,6 +385,17 @@ def infer_precision_from_config(config: dict) -> str:
                             isinstance(weights, dict) and weights.get("num_bits") == 8):
                             return "fp8"
 
+    # Check model ID/name for precision hints (high priority)
+    # This checks the original model ID passed to the function
+    if model_id:
+        model_id_lower = model_id.lower()
+        if "fp8" in model_id_lower:
+            return "fp8"
+        elif "bf16" in model_id_lower or "bfloat16" in model_id_lower:
+            return "bf16"
+        elif "fp16" in model_id_lower or "float16" in model_id_lower:
+            return "fp16"
+
     # Check torch_dtype field
     torch_dtype = config.get("torch_dtype")
     if torch_dtype:
@@ -258,7 +410,7 @@ def infer_precision_from_config(config: dict) -> str:
         if torch_dtype in dtype_mapping:
             return dtype_mapping[torch_dtype]
 
-    # Check model name/repo for precision hints
+    # Check model name/repo for precision hints (from config)
     model_name = config.get("_name_or_path", "").lower()
     if "fp8" in model_name:
         return "fp8"
@@ -269,7 +421,7 @@ def infer_precision_from_config(config: dict) -> str:
 
     # Check model architecture for precision hints
     config.get("model_type", "").lower()
-    architectures = config.get("architectures", [])
+    config.get("architectures", [])
 
     # Some models specify precision in their config content
     config_str = str(config).lower()
@@ -278,11 +430,15 @@ def infer_precision_from_config(config: dict) -> str:
     elif "bf16" in config_str or "bfloat16" in config_str:
         return "bf16"
 
-    # Default fallback based on model characteristics
-    # Newer/larger models often use bf16, older ones fp16
-    if any(arch for arch in architectures if arch and ("llama" in arch.lower() or "mistral" in arch.lower())):
-        # Modern LLMs often default to bf16
-        return "bf16"
+    # Try to infer precision from parameter count and model size
+    # This method calculates bytes per parameter to estimate precision
+    try:
+        precision_from_size = infer_precision_from_model_size(config, model_id)
+        if precision_from_size:
+            return precision_from_size
+    except Exception:
+        # If size-based inference fails, continue to fallback
+        pass
 
     # Default to fp16 if we can't determine
     return "fp16"
@@ -329,31 +485,18 @@ def get_model_config_and_precision_from_hf(model_id: str) -> ModelConfig:
         )
 
     try:
-        # Extract parameters needed for calculation
+        # Extract basic config parameters
         h = config["hidden_size"]
         n_layers = config["num_hidden_layers"]
-        i = config["intermediate_size"]
         v = config["vocab_size"]
         n_heads = config.get("num_attention_heads", 0)
         n_kv_heads = config.get("num_key_value_heads", n_heads)
 
-        # Calculate params per layer
-        head_dim = h // n_heads
-        attention_params = n_layers * (
-            h * (n_heads * head_dim) + h * (n_kv_heads * head_dim) * 2 + h * h
-        )
+        # Calculate total parameters using the dedicated function
+        total_params = calculate_model_parameters_from_config(config)
 
-        # FFN params (assuming SwiGLU)
-        ffn_params = n_layers * (h * i * 2 + i * h)
-
-        # Embedding and output params
-        embedding_params = v * h
-        output_params = v * h if not config.get("tie_word_embeddings", False) else 0
-
-        total_params = attention_params + ffn_params + embedding_params + output_params
-
-        # Infer precision from config
-        precision = infer_precision_from_config(config)
+        # Infer precision from config and model ID
+        precision = infer_precision_from_config(config, model_id)
 
         model_config = ModelConfig(
             num_params=total_params,
