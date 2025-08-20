@@ -39,6 +39,7 @@
                 options: [
                     { value: 'mean_ttft_ms', label: 'Mean TTFT' },
                     { value: 'median_ttft_ms', label: 'Median TTFT' },
+                    { value: 'p95_ttft_ms', label: 'P95 TTFT' },
                     { value: 'p99_ttft_ms', label: 'P99 TTFT' }
                 ]
             },
@@ -48,6 +49,7 @@
                 options: [
                     { value: 'mean_itl_ms', label: 'Mean ITL' },
                     { value: 'median_itl_ms', label: 'Median ITL' },
+                    { value: 'p95_itl_ms', label: 'P95 ITL' },
                     { value: 'p99_itl_ms', label: 'P99 ITL' }
                 ]
             },
@@ -57,7 +59,18 @@
                 options: [
                     { value: 'mean_e2e_latency_ms', label: 'Mean E2E' },
                     { value: 'median_e2e_latency_ms', label: 'Median E2E' },
+                    { value: 'p95_e2e_latency_ms', label: 'P95 E2E' },
                     { value: 'p99_e2e_latency_ms', label: 'P99 E2E' }
+                ]
+            },
+            'tpot': {
+                label: 'TPOT',
+                description: 'Time Per Output Token',
+                options: [
+                    { value: 'mean_tpot_ms', label: 'Mean TPOT' },
+                    { value: 'median_tpot_ms', label: 'Median TPOT' },
+                    { value: 'p95_tpot_ms', label: 'P95 TPOT' },
+                    { value: 'p99_tpot_ms', label: 'P99 TPOT' }
                 ]
             }
         };

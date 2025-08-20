@@ -600,10 +600,12 @@ class BenchmarkMetrics:
     mean_ttft_ms: float
     median_ttft_ms: float
     std_ttft_ms: float
+    p95_ttft_ms: float
     p99_ttft_ms: float
     mean_tpot_ms: float
     median_tpot_ms: float
     std_tpot_ms: float
+    p95_tpot_ms: float
     p99_tpot_ms: float
     mean_itl_ms: float
     median_itl_ms: float
@@ -614,6 +616,7 @@ class BenchmarkMetrics:
     mean_e2e_latency_ms: float
     median_e2e_latency_ms: float
     std_e2e_latency_ms: float
+    p95_e2e_latency_ms: float
     p99_e2e_latency_ms: float
     concurrency: float
 
@@ -1191,10 +1194,12 @@ def calculate_metrics(
         * 1000,  # ttfts is empty if streaming is not supported by backend
         median_ttft_ms=np.median(ttfts or 0) * 1000,
         std_ttft_ms=np.std(ttfts or 0) * 1000,
+        p95_ttft_ms=np.percentile(ttfts or 0, 95) * 1000,
         p99_ttft_ms=np.percentile(ttfts or 0, 99) * 1000,
         mean_tpot_ms=np.mean(tpots or 0) * 1000,
         median_tpot_ms=np.median(tpots or 0) * 1000,
         std_tpot_ms=np.std(tpots or 0) * 1000,
+        p95_tpot_ms=np.percentile(tpots or 0, 95) * 1000,
         p99_tpot_ms=np.percentile(tpots or 0, 99) * 1000,
         mean_itl_ms=np.mean(itls or 0) * 1000,
         median_itl_ms=np.median(itls or 0) * 1000,
@@ -1205,6 +1210,7 @@ def calculate_metrics(
         mean_e2e_latency_ms=np.mean(e2e_latencies) * 1000,
         median_e2e_latency_ms=np.median(e2e_latencies) * 1000,
         std_e2e_latency_ms=np.std(e2e_latencies) * 1000,
+        p95_e2e_latency_ms=np.percentile(e2e_latencies, 95) * 1000,
         p99_e2e_latency_ms=np.percentile(e2e_latencies, 99) * 1000,
         concurrency=np.sum(e2e_latencies) / dur_s,
     )
@@ -1469,6 +1475,7 @@ async def benchmark(
     print("{s:{c}^{n}}".format(s="Time to First Token", n=50, c="-"))
     print("{:<40} {:<10.2f}".format("Mean TTFT (ms):", metrics.mean_ttft_ms))
     print("{:<40} {:<10.2f}".format("Median TTFT (ms):", metrics.median_ttft_ms))
+    print("{:<40} {:<10.2f}".format("P95 TTFT (ms):", metrics.p95_ttft_ms))
     print("{:<40} {:<10.2f}".format("P99 TTFT (ms):", metrics.p99_ttft_ms))
     print("{s:{c}^{n}}".format(s="Inter-Token Latency", n=50, c="-"))
     print("{:<40} {:<10.2f}".format("Mean ITL (ms):", metrics.mean_itl_ms))
@@ -1505,14 +1512,17 @@ async def benchmark(
             "mean_e2e_latency_ms": metrics.mean_e2e_latency_ms,
             "median_e2e_latency_ms": metrics.median_e2e_latency_ms,
             "std_e2e_latency_ms": metrics.std_e2e_latency_ms,
+            "p95_e2e_latency_ms": metrics.p95_e2e_latency_ms,
             "p99_e2e_latency_ms": metrics.p99_e2e_latency_ms,
             "mean_ttft_ms": metrics.mean_ttft_ms,
             "median_ttft_ms": metrics.median_ttft_ms,
             "std_ttft_ms": metrics.std_ttft_ms,
+            "p95_ttft_ms": metrics.p95_ttft_ms,
             "p99_ttft_ms": metrics.p99_ttft_ms,
             "mean_tpot_ms": metrics.mean_tpot_ms,
             "median_tpot_ms": metrics.median_tpot_ms,
             "std_tpot_ms": metrics.std_tpot_ms,
+            "p95_tpot_ms": metrics.p95_tpot_ms,
             "p99_tpot_ms": metrics.p99_tpot_ms,
             "mean_itl_ms": metrics.mean_itl_ms,
             "median_itl_ms": metrics.median_itl_ms,
