@@ -1,8 +1,16 @@
 # LLM Optimizer
 
-A Python tool for optimizing Large Language Model (LLM) serving performance. Supports SGLang and vLLM frameworks with automated benchmarking and performance estimation.
+llm-optimizer is a Python tool for benchmarking and optimizing inference performance of any open-source LLMs.
+
+- 🧩 Benchmark across inference frameworks like SGLang and vLLM using their native arguments
+- ⚡️ Find the optimal setup automatically for your use case without endless trial and error
+- 🎯 Apply SLO constraints to focus only on configurations that meet your performance goals
+- 🧮 Estimate performance theoretically without running full benchmarks
+- 📊 Visualize results interactively with dashboards for clear analysis
 
 ## Installation
+
+Install llm-optimizer with `pip`.
 
 ```bash
 pip install -e .
@@ -13,11 +21,49 @@ For development:
 pip install -e .[dev]
 ```
 
-## Quick Start
+## Get started
 
-### Raw Benchmarking with Parameter Combinations
+The quickest way to try llm-optimizer is with performance estimation. This feature predicts latency, throughput, and concurrency limits, helping you identify optimal configurations without running full benchmarks:
 
-Run comprehensive benchmarks across multiple parameter configurations:
+```bash
+llm-optimizer estimate \
+  --model meta-llama/Llama-3.1-8B-Instruct \
+  --input-len 1024 \
+  --output-len 512
+```
+
+More examples:
+
+```bash
+# With GPU specification
+llm-optimizer estimate \
+  --model meta-llama/Llama-3.1-8B-Instruct \
+  --input-len 2048 \
+  --output-len 1024 \
+  --gpu H100 \
+  --num-gpus 8
+
+# With performance constraints and command generation
+llm-optimizer estimate \
+  --model meta-llama/Llama-3.1-8B-Instruct \
+  --input-len 1024 \
+  --output-len 512 \
+  --gpu H100 \
+  --num-gpus 4 \
+  --constraints "ttft:mean<300ms;itl:p95<50ms"
+```
+
+For guided setup, you can also use interactive mode:
+
+```bash
+llm-optimizer estimate --interactive
+```
+
+## Run your first benchmark
+
+Currently, llm-optimizer supports benchmarking with SGLang and vLLM to test different configurations of an LLM.
+
+Here is an example using SGLang:
 
 ```bash
 # SGLang with multiple TP/DP combinations
@@ -27,7 +73,17 @@ llm-optimizer \
   --server-args "tp_size*dp_size=[(1,4),(2,2),(4,1)];chunked_prefill_size=[2048,4096,8192]" \
   --client-args "max_concurrency=[50,100,200];num_prompts=1000" \
   --output-json sglang_results.json
+```
 
+This command will:
+
+- Test 3 TP/DP combinations × 3 prefill sizes = 9 server configurations
+- Test each against 3 concurrency values = 27 client configurations
+- In total, 27 unique benchmarks will be run, with results saved in `sglang_results.json`
+
+More examples:
+
+```bash
 # vLLM with batch size tuning
 llm-optimizer \
   --framework vllm \
@@ -44,7 +100,13 @@ llm-optimizer \
   --client-args "max_concurrency=range(50,201,50);request_rate=[10,20,50]" \
   --gpus 8 \
   --output-json complex_benchmark.json
+```
 
+## Apply constraints
+
+Not every benchmark result is useful. You can apply constraints directly to your benchmarks so only configurations that meet your Service Level Objectives (SLOs) are returned.
+
+```bash
 # Latency-optimized configuration
 llm-optimizer \
   --framework vllm \
@@ -55,41 +117,46 @@ llm-optimizer \
   --output-json latency_optimized.json
 ```
 
-### Performance Estimation
-
-Get optimal serving configurations without running actual benchmarks:
+Currently llm-optimizer supports constraints on key performance metrics using mean, median, p95, or p99 values. Constraint syntax:
 
 ```bash
-# Basic performance estimation
-llm-optimizer estimate \
-  --model meta-llama/Llama-3.1-8B-Instruct \
-  --input-len 1024 \
-  --output-len 512
+# Time to first token constraints
+--constraints "ttft<300ms"                    # Mean TTFT under 300ms
+--constraints "ttft:median<200ms"             # Median TTFT under 200ms
+--constraints "ttft:p95<500ms"                # 95th percentile under 500ms
 
-# With GPU specification
-llm-optimizer estimate \
-  --model meta-llama/Llama-3.1-8B-Instruct \
-  --input-len 2048 \
-  --output-len 1024 \
-  --gpu H100 \
-  --num-gpus 8
+# Inter-token latency constraints
+--constraints "itl:mean<20ms"                 # Mean ITL under 20ms
+--constraints "itl:p99<50ms"                  # 99th percentile under 50ms
 
-# With performance constraints and command generation
-llm-optimizer estimate \
-  --model meta-llama/Llama-3.1-8B-Instruct \
-  --input-len 1024 \
-  --output-len 512 \
-  --gpu H100 \
-  --num-gpus 4 \
-  --constraints "ttft:mean<300ms;itl:p95<50ms" \
-  --generate-commands
+# End-to-end latency constraints
+--constraints "e2e_latency:p95<2s"           # 95th percentile under 2s
 
-# Interactive mode
-
-llm-optimizer estimate --interactive
+# Combined constraints
+--constraints "ttft:median<300ms;itl:p95<10ms;e2e_latency:p95<2s"
 ```
 
-### Using Custom Server Commands
+## Visualize benchmark results
+
+llm-optimizer saves benchmark results in JSON format, including key inference metrics like TTFT, ITL, and concurrency. Since raw numbers can be difficult to interpret, it provides an interactive visualization tool to help you explore results more easily.
+
+```bash
+# Visualize results with Pareto frontier analysis
+llm-optimizer visualize --data-file results.json --port 8080
+
+# Combine multiple result files
+llm-optimizer visualize --data-file "sglang_results.json,vllm_results.json" --port 8080
+```
+
+Open your browser at `http://localhost:8080/pareto_llm_dashboard.html`. The dashboard allows you to:
+
+- Compare results from multiple runs side by side
+- Explore trade-offs between different setups (e.g., latency vs. throughput)
+- Identify the best-performing configurations for your workload
+
+## Use custom server commands
+
+By default, llm-optimizer manages server startup for supported frameworks. If you want more control, you can provide your own server command.
 
 ```bash
 # Custom SGLang server
@@ -106,64 +173,30 @@ llm-optimizer \
   --port 8000
 ```
 
-## Visualization
+## Tune inference parameters
 
-Generate interactive dashboard from benchmark results:
+llm-optimizer exposes both server- and client-side parameters so you can experiment with different setups and measure their impact on performance. It uses native parameters from the respective frameworks (currently support vLLM and SGLang). Here are some common parameters and you can add others as needed.
 
-```bash
-# Visualize results with Pareto frontier analysis
-llm-optimizer visualize --data-file results.json --port 8080
-
-# Combine multiple result files
-llm-optimizer visualize --data-file "sglang_results.json,vllm_results.json" --port 8080
-```
-
-## Configuration Examples
-
-### SGLang Parameter Tuning
+### SGLang
 - `tp_size*dp_size`: Tensor/Data parallelism combinations
 - `chunked_prefill_size`: Prefill chunk size for throughput
 - `schedule_conservativeness`: Request scheduling aggressiveness
 - `schedule_policy`: Scheduling policy (fcfs, priority)
 
-### vLLM Parameter Tuning  
+### vLLM
 - `tensor_parallel_size`: Tensor parallelism degree
 - `max_num_batched_tokens`: Maximum batch size in tokens
 - `max_num_seqs`: Maximum concurrent sequences
 
-### Client Parameters
+### Client parameters
 - `max_concurrency`: Maximum concurrent requests
 - `num_prompts`: Total number of requests to send
-- `dataset_name`: Dataset for request generation (sharegpt, alpaca)
+- `dataset_name`: Dataset for request generation (`sharegpt`, `random`)
 - `random_input/random_output`: Random sequence lengths
 
-## Performance Constraints
-
-Specify SLO constraints for optimization:
-
-```bash
-# Time to first token constraints
---constraints "ttft<300ms"                    # Mean TTFT under 300ms
---constraints "ttft:median<200ms"             # Median TTFT under 200ms  
---constraints "ttft:p95<500ms"                # 95th percentile under 500ms
-
-# Inter-token latency constraints
---constraints "itl:mean<20ms"                 # Mean ITL under 20ms
---constraints "itl:p99<50ms"                  # 99th percentile under 50ms
-
-# Combined constraints
---constraints "ttft:median<300ms;itl:p95<10ms;e2e_latency:p95<2s"
-```
-
-## Supported GPUs
+### Supported GPUs
 
 H100, H200, A100, L20, L40, B100, B200 with accurate TFLOPS specifications.
-
-## Output Formats
-
-- JSON: Structured benchmark results
-- JSONL: Line-delimited for streaming
-- Interactive Dashboard: Pareto optimization analysis with SciPy curve fitting
 
 ## Development
 
