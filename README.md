@@ -8,6 +8,8 @@ llm-optimizer is a Python tool for benchmarking and optimizing inference perform
 - 🧮 Estimate performance theoretically without running full benchmarks
 - 📊 Visualize results interactively with dashboards for clear analysis
 
+Interested in optimizing disaggregated LLM inference? [👉 Contact us](https://www.bentoml.com/contact)
+
 ## Installation
 
 Install llm-optimizer with `pip`.
@@ -208,3 +210,14 @@ ruff check
 # Type checking
 mypy src/
 ```
+
+## Community
+
+llm-optimizer is actively maintained by the BentoML team. Feel free to reach out and [join our Slack community!](https://l.bentoml.com/join-slack)
+
+## Contributing
+
+As an open-source project, we welcome contributions of all kinds, such as new features, bug fixes, and documentation. Here are some of the ways to contribute:
+
+- Repost a bug by [creating a GitHub issue](https://github.com/bentoml/llm-optimizer/issues/new/choose).
+- [Submit a pull request](https://github.com/bentoml/llm-optimizer/compare) or help review other developers’ [pull requests](https://github.com/bentoml/llm-optimizer/pulls).
