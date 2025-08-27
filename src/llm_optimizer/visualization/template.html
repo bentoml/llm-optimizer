@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-NQSF6DF3');</script>
+    <!-- End Google Tag Manager -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
@@ -9,6 +16,10 @@
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-900">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NQSF6DF3"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
             <div id="root" class="w-screen min-h-screen"></div>
 
     <script type="module">
@@ -199,6 +210,27 @@
             return f.label + (f.unit ? ` (${f.unit})` : '');
         }
 
+        // Helper function to wrap long text
+        function wrapText(text, maxWidth = 50) {
+            if (!text || text.length <= maxWidth) return text;
+            
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = '';
+            
+            words.forEach(word => {
+                if ((currentLine + word).length <= maxWidth) {
+                    currentLine += (currentLine ? ' ' : '') + word;
+                } else {
+                    if (currentLine) lines.push(currentLine);
+                    currentLine = word;
+                }
+            });
+            
+            if (currentLine) lines.push(currentLine);
+            return lines.join('<br>');
+        }
+
         function generateHoverText(point) {
             if (!config.fields) return JSON.stringify(point, null, 2);
             const grouped = {};
@@ -237,7 +269,13 @@
                 const catLabel = fieldCategories?.[cat]?.label || cat;
                 text += `<b>${catLabel}:</b><br>`;
                 fields.forEach(({ label, value, unit }) => {
-                    text += `  ${label}: ${value}${unit}<br>`;
+                    // Handle special case for cmd field which can be very long
+                    if (label === 'cmd' || label === 'Command') {
+                        const wrappedCmd = wrapText(`${value}${unit}`, 60);
+                        text += `  ${label}: ${wrappedCmd}<br>`;
+                    } else {
+                        text += `  ${label}: ${value}${unit}<br>`;
+                    }
                 });
                 text += '<br>';
             });
@@ -421,12 +459,12 @@
                                 backgroundColor: 'rgba(0,0,0,0)',
                                 borderWidth: 0,
                                 padding: 0,
-                                extraCssText: 'background: linear-gradient(180deg, #22c55e 0%, #065f46 85%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff;',
+                                extraCssText: 'background: linear-gradient(180deg, #22c55e 0%, #065f46 85%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff; word-wrap: break-word; white-space: normal;',
                                 formatter: (p) => {
                                     const m = p.data && p.data.__meta;
                                     const txt = m ? generateHoverText(m.point) : '';
                                     const title = '<span style=\'color:#dcfce7;font-weight:800\'>Pareto ✓ (constraints)</span>';
-                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
+                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px;word-wrap:break-word;white-space:normal;\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
                                 }
                             },
                             z: 3,
@@ -441,12 +479,12 @@
                                 backgroundColor: 'rgba(0,0,0,0)',
                                 borderWidth: 0,
                                 padding: 0,
-                                extraCssText: 'background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 35%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff;',
+                                extraCssText: 'background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 35%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff; word-wrap: break-word; white-space: normal;',
                                 formatter: (p) => {
                                     const m = p.data && p.data.__meta;
                                     const txt = m ? generateHoverText(m.point) : '';
                                     const title = '<span style=\'color:#eafff7;font-weight:800\'>Pareto</span>';
-                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
+                                    return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px;word-wrap:break-word;white-space:normal;\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
                                 }
                             },
                             z: 2,
@@ -457,14 +495,14 @@
                         type: 'scatter', name: 'Others', symbolSize: 10,
                         itemStyle: { color: '#94a3b8', borderColor: '#64748b', borderWidth: 1 },
                         emphasis: { scale: 1.05, focus: 'series' },
-                        tooltip: {
-                            trigger: 'item',
-                            backgroundColor: 'rgba(0,0,0,0)',
-                            borderWidth: 0,
-                            padding: 0,
-                            extraCssText: 'background: linear-gradient(180deg, #9ca3af 0%, #374151 90%, #1F2937 100%);border-radius: 10px; padding: 12px; color: #ffffff;',
-                            formatter: (p) => { const m = p.data && p.data.__meta; const txt = m ? generateHoverText(m.point) : ''; const label = '<span style=\'color:#ffffff;font-weight:700\'>Non‑Pareto</span>'; return `<div style=\'color:#ffffff;max-width:320px\'>${label}<div style=\'margin-top:6px;\'>${txt}</div></div>`; }
-                        },
+                                                    tooltip: {
+                                trigger: 'item',
+                                backgroundColor: 'rgba(0,0,0,0)',
+                                borderWidth: 0,
+                                padding: 0,
+                                extraCssText: 'background: linear-gradient(180deg, #9ca3af 0%, #374151 90%, #1F2937 100%);border-radius: 10px; padding: 12px; color: #ffffff; word-wrap: break-word; white-space: normal;',
+                                formatter: (p) => { const m = p.data && p.data.__meta; const txt = m ? generateHoverText(m.point) : ''; const label = '<span style=\'color:#ffffff;font-weight:700\'>Non‑Pareto</span>'; return `<div style=\'color:#ffffff;max-width:320px;word-wrap:break-word;white-space:normal;\'>${label}<div style=\'margin-top:6px;\'>${txt}</div></div>`; }
+                            },
                         z: 1,
                         data: nonParetoData.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._raw || d) } }))
                     });
@@ -553,7 +591,7 @@
                     ]),
 
                     // Constraints (left of Display)
-                    React.createElement('div', { key: 'constraints', className: 'flex flex-col md:col-span-2 min-w-0' }, [
+                    React.createElement('div', { key: 'constraints', className: 'flex flex-col md:col-span-4 min-w-0' }, [
                         React.createElement('div', { key: 'header', className: 'flex items-center justify-between mb-2' }, [
                             React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-700 font-semibold' }, 'Constraints'),
                             React.createElement('button', {
@@ -573,7 +611,7 @@
                         }),
 
                         // Constraint list
-                        React.createElement('div', { key: 'list', className: 'space-y-1 text-xs max-h-20 overflow-y-auto' }, [
+                        React.createElement('div', { key: 'list', className: 'space-y-1 text-xs max-h-32 overflow-y-auto' }, [
                             // Original constraints (now removable)
                             formatConstraintsList(constraints).length > 0 && [
                                 React.createElement('div', { key: 'origLabel', className: 'text-gray-500 font-medium' }, '📊 From Benchmark:'),
@@ -616,19 +654,6 @@
                                 React.createElement('div', { key: 'empty', className: 'text-gray-500 italic text-center py-2' }, 'No constraints')
                         ])
                     ]),
-
-                    // Display
-                    React.createElement('div', { key: 'd', className: 'flex flex-col gap-3 md:col-span-2 min-w-0' }, [
-                        React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-700 font-semibold' }, 'Display Options'),
-                        React.createElement('label', { className: 'inline-flex items-center gap-2 text-slate-800 text-sm' }, [
-                            React.createElement('input', { key: 'i1', type: 'checkbox', checked: showLines, onChange: e => onChange({ showLines: e.target.checked }), className: 'w-4 h-4 accent-indigo-500' }),
-                            'Show Lines'
-                        ]),
-                        React.createElement('label', { className: 'inline-flex items-center gap-2 text-slate-800 text-sm' }, [
-                            React.createElement('input', { key: 'i2', type: 'checkbox', checked: showPoints, onChange: e => onChange({ showPoints: e.target.checked }), className: 'w-4 h-4 accent-indigo-500' }),
-                            'Show Points'
-                        ])
-                    ])
                 ]),
 
                 // Legend + constraints summary
@@ -761,10 +786,10 @@
                         React.createElement('tr', { key: idx, id: `row-${idx}`, className: (selectedKey && makeKey(row[xAxis], row[yAxis]) === selectedKey ? 'bg-teal-100 transition-colors' : 'odd:bg-white even:bg-slate-50 transition-colors') }, orderedFields.map(f => {
                             const v = row[f];
                             if (f === 'cmd') {
-                                return React.createElement('td', { key: f, className: 'px-3 py-2 border-b border-slate-100' }, (
-                                    React.createElement('div', { className: 'flex items-center justify-between cursor-pointer px-3 py-2 bg-slate-50 hover:bg-indigo-50 rounded-md border border-slate-200', onClick: (e) => copy(String(v), e.currentTarget), title: 'Click to copy' }, [
-                                        React.createElement('span', { key: 't', className: 'font-mono text-xs text-slate-700 whitespace-nowrap flex-1' }, String(v)),
-                                        React.createElement(Copy, { key: 'i', size: 14, className: 'text-slate-500 ml-2 shrink-0' })
+                                return React.createElement('td', { key: f, className: 'px-3 py-2 border-b border-slate-100 max-w-xs' }, (
+                                    React.createElement('div', { className: 'flex items-start justify-between cursor-pointer px-3 py-2 bg-slate-50 hover:bg-indigo-50 rounded-md border border-slate-200', onClick: (e) => copy(String(v), e.currentTarget), title: 'Click to copy' }, [
+                                        React.createElement('span', { key: 't', className: 'font-mono text-xs text-slate-700 break-words flex-1 leading-relaxed' }, String(v)),
+                                        React.createElement(Copy, { key: 'i', size: 14, className: 'text-slate-500 ml-2 shrink-0 mt-0.5' })
                                     ])
                                 ));
                             }
