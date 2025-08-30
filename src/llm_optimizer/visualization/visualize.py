@@ -12,25 +12,58 @@ import logging
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
-# Add scipy for curve fitting
-try:
-    import numpy as np
-    from scipy import stats
-    from scipy.optimize import curve_fit
-
-    SCIPY_AVAILABLE = True
-    print("scipy and numpy successfully imported")
-except ImportError as e:
-    SCIPY_AVAILABLE = False
-    print(
-        f"Warning: scipy not available. Error: {e}. Fit lines will not be calculated."
-    )
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def convert_constraints_for_visualization(parsed_constraints):
+    """
+    Convert parsed SLO constraints to the format expected by visualize.py.
+
+    Args:
+        parsed_constraints: List of SLOConstraint objects
+
+    Returns:
+        List of constraint objects with operator information preserved
+        Example: [{"op": "<", "value": 1000.0, "name": "mean_ttft_ms"}]
+    """
+    if not parsed_constraints:
+        return []
+
+    constraints_list = []
+
+    for constraint in parsed_constraints:
+        # Convert metric name to match benchmark results format
+        metric_mapping = {
+            "ttft": "ttft_ms",
+            "itl": "itl_ms",
+            "tpot": "tpot_ms",
+            "e2e_latency": "e2e_latency_ms"
+        }
+
+        base_metric = metric_mapping.get(constraint.metric, constraint.metric)
+
+        # Convert value to milliseconds if needed
+        value_ms = constraint.value
+        if constraint.unit == "s":
+            value_ms = constraint.value * 1000
+
+        # Create field name with stat_type prefix
+        if constraint.stat_type == "mean":
+            field_name = f"mean_{base_metric}"
+        else:
+            field_name = f"{constraint.stat_type}_{base_metric}"
+
+        constraints_list.append({
+            "op": constraint.operator,
+            "value": value_ms,
+            "name": field_name
+        })
+
+    return constraints_list
 
 
 class ParetoLLMOptimizer:
@@ -85,36 +118,61 @@ class ParetoLLMOptimizer:
         """Load benchmark data from JSON files."""
         data = []
         constraints = {}
+        metadata = {}
+        best_configurations = {}
         json_files = [Path(data_file)]
 
         # Load data from the specified file
         try:
             with open(data_file, encoding="utf-8") as f:
                 file_data = json.load(f)
-                if isinstance(file_data, list):
-                    data.extend(file_data)
-                    # Extract constraints from the first item that has them
-                    for item in file_data:
-                        if isinstance(item, dict) and "constraints" in item and item["constraints"]:
+
+                # Expect new enhanced structure only
+                if not isinstance(file_data, dict) or "test_results" not in file_data:
+                    raise ValueError(
+                        "Invalid data format. Expected enhanced format with "
+                        "'metadata', 'best_configurations', and 'test_results' fields."
+                    )
+
+                # Extract data from enhanced format
+                data = file_data["test_results"]
+                metadata = file_data.get("metadata", {})
+                best_configurations = file_data.get("best_configurations", {})
+                constraints = metadata.get("constraints", {})
+
+                # If constraints not in metadata, try to extract from individual results
+                if not constraints:
+                    for item in data:
+                        if (
+                            isinstance(item, dict)
+                            and "constraints" in item
+                            and item["constraints"]
+                        ):
                             constraints = item["constraints"]
                             break
-                else:
-                    data.append(file_data)
-                    # Extract constraints if present
-                    if isinstance(file_data, dict) and "constraints" in file_data and file_data["constraints"]:
-                        constraints = file_data["constraints"]
+
             logger.info(f"Loaded data from {data_file}")
+            logger.info(
+                f"Metadata: GPU={metadata.get('gpu_type')} "
+                f"x{metadata.get('gpu_count')}, Model={metadata.get('model_tag')}"
+            )
+            logger.info(f"Total tests: {metadata.get('total_tests', len(data))}")
+
         except Exception as e:
             logger.error(f"Error loading {data_file}: {e}")
+            raise
 
         # Flatten the data according to the mapping
         flattened_data = self.flatten_data(data)
         logger.info(f"Loaded {len(flattened_data)} benchmark records from {data_file}")
         logger.info(f"Found constraints: {constraints}")
+
         return {
             "data": flattened_data,
             "constraints": constraints,
             "data_files": json_files,
+            "metadata": metadata,
+            "best_configurations": best_configurations,
         }
 
     def get_available_fields(self, data: list) -> set:
@@ -129,7 +187,7 @@ class ParetoLLMOptimizer:
         return available_fields
 
     def get_field_options(self, data: list = None) -> dict:
-        """Get field options organized by category, with disabled fields for missing data."""
+        """Get field options by category, with disabled fields for missing data."""
         if not self.config or "fields" not in self.config:
             return {}
 
@@ -198,6 +256,10 @@ class ParetoLLMOptimizer:
         )
         field_categories_json = json.dumps(self.get_field_categories(), indent=2)
         defaults_json = json.dumps(self.config.get("defaults", {}), indent=2)
+        metadata_json = json.dumps(data_dict.get("metadata", {}), indent=2)
+        best_configs_json = json.dumps(
+            data_dict.get("best_configurations", {}), indent=2
+        )
 
         # Get UI configuration
         ui_config = self.config.get("ui", {})
@@ -216,7 +278,9 @@ class ParetoLLMOptimizer:
             "{description}",
             ui_config.get(
                 "description",
-                "Select different metrics for X and Y axes to analyze performance relationships and identify Pareto optimal configurations. Hover over data points to see detailed configuration information.",
+                "Select different metrics for X and Y axes to analyze performance "
+                "relationships and identify Pareto optimal configurations. "
+                "Hover over data points to see detailed configuration information.",
             ),
         )
         html_content = html_content.replace("{data_json}", data_json)
@@ -227,6 +291,8 @@ class ParetoLLMOptimizer:
             "{field_categories_json}", field_categories_json
         )
         html_content = html_content.replace("{defaults_json}", defaults_json)
+        html_content = html_content.replace("{metadata_json}", metadata_json)
+        html_content = html_content.replace("{best_configs_json}", best_configs_json)
 
         return html_content
 

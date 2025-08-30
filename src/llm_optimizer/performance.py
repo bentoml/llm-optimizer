@@ -891,51 +891,6 @@ def parse_slo_constraints(constraints_str: str) -> list[SLOConstraint]:
     return constraints
 
 
-def convert_constraints_for_visualization(parsed_constraints: list[SLOConstraint]) -> dict[str, float]:
-    """
-    Convert parsed SLO constraints to the format expected by visualize.py.
-
-    Args:
-        parsed_constraints: List of SLOConstraint objects
-
-    Returns:
-        Dictionary mapping field names to constraint values in the format expected by visualize.py
-        Example: {"median_ttft_ms": 300, "p95_itl_ms": 8.5}
-    """
-    if not parsed_constraints:
-        return {}
-
-    constraints_dict = {}
-
-    for constraint in parsed_constraints:
-        # Only process constraints with < or <= operators (upper bounds)
-        if constraint.operator not in ["<", "<="]:
-            continue
-
-        # Convert metric name to match benchmark results format
-        metric_mapping = {
-            "ttft": "ttft_ms",
-            "itl": "itl_ms",
-            "tpot": "tpot_ms",
-            "e2e_latency": "e2e_latency_ms"
-        }
-
-        base_metric = metric_mapping.get(constraint.metric, constraint.metric)
-
-        # Convert value to milliseconds if needed
-        value_ms = constraint.value
-        if constraint.unit == "s":
-            value_ms = constraint.value * 1000
-
-        # Create field name with stat_type prefix
-        if constraint.stat_type == "mean":
-            field_name = f"mean_{base_metric}"
-        else:
-            field_name = f"{constraint.stat_type}_{base_metric}"
-
-        constraints_dict[field_name] = value_ms
-
-    return constraints_dict
 
 
 def get_stat_type_adjustment_factor(stat_type: str) -> float:

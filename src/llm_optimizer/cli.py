@@ -10,6 +10,8 @@ import llm_optimizer.predefined as predefined
 from llm_optimizer.cli_utils import (
     collect_gpu_configuration,
     collect_interactive_parameters,
+    detect_gpu_type,
+    get_gpu_count,
     normalize_gpu_choice,
 )
 from llm_optimizer.logging import get_logger, setup_logging
@@ -37,10 +39,129 @@ def construct_benchmark_settings(combo: list[lo_args.BaseArg]) -> dict[str, t.An
     server_cmd_args = lo_args.get_all_cmd_args(server_args)
     server_kv_pairs = lo_args.get_all_kv_pairs(server_args)
     return {
-        "client": dict(client_kv_pairs),
+        "client_args": dict(client_kv_pairs),
         "server": dict(server_kv_pairs),
         "server_args": server_cmd_args,
     }
+
+
+
+
+def extract_token_lengths(client_params: dict) -> tuple[int, int]:
+    """Extract input and output token lengths from client parameters."""
+    input_len = client_params.get("random_input_len", 0)
+    output_len = client_params.get("random_output_len", 0)
+
+    # If using sharegpt dataset, these might be None
+    if input_len == 0 and output_len == 0:
+        # Check if using sharegpt
+        if client_params.get("dataset_name") == "sharegpt":
+            # sharegpt_output_len might be specified
+            output_len = client_params.get("sharegpt_output_len", -1)
+            input_len = -1  # Variable for sharegpt
+
+    return input_len, output_len
+
+
+def find_best_throughput_configs(all_results: list, constraints: list = None) -> dict:
+    """Find configurations with best input/output throughput."""
+    best_configs = {
+        "best_input_throughput": None,
+        "best_output_throughput": None,
+        "best_input_throughput_constrained": None,
+        "best_output_throughput_constrained": None,
+    }
+
+    # Helper to check if result satisfies constraints
+    def satisfies_constraints(result, constraints):
+        if not constraints:
+            return True
+
+        metrics = result.get("results", {})
+        for constraint in constraints:
+            # Handle SLOConstraint objects only (no legacy dict support)
+            metric_name = constraint.metric
+            stat_type = constraint.stat_type
+            operator = constraint.operator
+            threshold = constraint.value
+
+            # Map constraint metric names to result metric names
+            metric_mapping = {
+                "ttft": f"{stat_type}_ttft_ms",
+                "itl": f"{stat_type}_itl_ms",
+                "e2e_latency": f"{stat_type}_e2e_latency_ms",
+            }
+
+            result_metric = metric_mapping.get(
+                metric_name, f"{stat_type}_{metric_name}"
+            )
+            value = metrics.get(result_metric)
+
+            if value is None:
+                return False
+
+            if operator == "<" and value >= threshold:
+                return False
+            elif operator == ">" and value <= threshold:
+                return False
+
+        return True
+
+    # Find best configurations
+    for result in all_results:
+        if "results" not in result:
+            continue
+
+        metrics = result["results"]
+        input_tp = metrics.get("input_throughput", 0)
+        output_tp = metrics.get("output_throughput", 0)
+
+        # Update unconstrained bests
+        if (
+            best_configs["best_input_throughput"] is None
+            or input_tp > best_configs["best_input_throughput"]["throughput"]
+        ):
+            best_configs["best_input_throughput"] = {
+                "throughput": input_tp,
+                "config": result["config"],
+                "cmd": result.get("cmd", ""),
+            }
+
+        if (
+            best_configs["best_output_throughput"] is None
+            or output_tp > best_configs["best_output_throughput"]["throughput"]
+        ):
+            best_configs["best_output_throughput"] = {
+                "throughput": output_tp,
+                "config": result["config"],
+                "cmd": result.get("cmd", ""),
+            }
+
+        # Update constrained bests if constraints are satisfied
+        if constraints and satisfies_constraints(result, constraints):
+            if (
+                best_configs["best_input_throughput_constrained"] is None
+                or input_tp
+                > best_configs["best_input_throughput_constrained"]["throughput"]
+            ):
+                best_configs["best_input_throughput_constrained"] = {
+                    "throughput": input_tp,
+                    "config": result["config"],
+                    "cmd": result.get("cmd", ""),
+                }
+
+            if (
+                best_configs["best_output_throughput_constrained"] is None
+                or output_tp
+                > best_configs["best_output_throughput_constrained"]["throughput"]
+            ):
+                best_configs["best_output_throughput_constrained"] = {
+                    "throughput": output_tp,
+                    "config": result["config"],
+                    "cmd": result.get("cmd", ""),
+                }
+
+    return best_configs
 
 
 def get_config_id(client_params: dict, server_params: dict) -> str:
@@ -168,19 +289,23 @@ def benchmark(
 ):
     """A CLI tool to optimize LLM performance."""
     import llm_optimizer.bench_client as bench_client
-    from llm_optimizer.performance import (
+    from llm_optimizer.performance import parse_slo_constraints
+    from llm_optimizer.visualization.visualize import (
         convert_constraints_for_visualization,
-        parse_slo_constraints,
     )
 
     # Parse constraints if provided
     parsed_constraints = []
-    constraints_for_viz = {}
+    constraints_for_viz = []
     if constraints:
         try:
             parsed_constraints = parse_slo_constraints(constraints)
-            constraints_for_viz = convert_constraints_for_visualization(parsed_constraints)
-            logger.info(f"Parsed {len(parsed_constraints)} constraint(s): {constraints}")
+            constraints_for_viz = convert_constraints_for_visualization(
+                parsed_constraints
+            )
+            logger.info(
+                f"Parsed {len(parsed_constraints)} constraint(s): {constraints}"
+            )
         except ValueError as e:
             logger.error(f"Error parsing constraints: {e}")
             # Continue without constraints rather than failing
@@ -188,7 +313,8 @@ def benchmark(
     if not server_cmd:
         if not model or not framework:
             raise click.UsageError(
-                "If --server-cmd is not provided, both --model and --framework are required."
+                "If --server-cmd is not provided, both --model and "
+                "--framework are required."
             )
 
         if port is None:
@@ -206,6 +332,10 @@ def benchmark(
 
     if gpus is None:
         gpus = get_gpu_count()
+
+    # Detect GPU type
+    gpu_type = detect_gpu_type() or "unknown"
+    logger.info(f"Detected GPU type: {gpu_type}, Count: {gpus}")
 
     if dry_run:
         click.echo("Dry run mode enabled.")
@@ -247,29 +377,70 @@ def benchmark(
     if output_json:
         output_jsonl_path = pathlib.Path(output_json).with_suffix(".jsonl")
 
+        # Check if output files already exist (unless continue flag is set)
+        if not continue_flag:
+            if pathlib.Path(output_json).exists():
+                logger.error(
+                    f"Output file {output_json} already exists! "
+                    "Use --continue to resume or choose a different output file."
+                )
+                return
+            if output_jsonl_path.exists():
+                logger.error(
+                    f"JSONL file {output_jsonl_path} already exists! "
+                    "Use --continue to resume or choose a different output file."
+                )
+                return
+
     completed_config_ids = set()
     if continue_flag and output_jsonl_path and output_jsonl_path.exists():
         logger.info(
             f"Found existing JSONL file, loading completed runs: {output_jsonl_path}"
         )
+
+        # Validate that existing results are for the same model
+        existing_model = None
         with open(output_jsonl_path) as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
                 try:
                     result = json.loads(line)
-                    client_params = result.get("config", {}).get("client", {})
+                    result_model = result.get("metadata", {}).get("model_tag")
+                    current_model = model
+
+                    if existing_model is None:
+                        existing_model = result_model
+                    elif result_model != existing_model:
+                        logger.warning(
+                            f"Inconsistent models in existing results: "
+                            f"{existing_model} vs {result_model}"
+                        )
+
+                    if result_model != current_model:
+                        logger.error(
+                            f"Model mismatch! Existing results for '{existing_model}' "
+                            f"but current model is '{current_model}'. "
+                            "Cannot append to existing results."
+                        )
+                        return
+
+                    client_params = result.get("config", {}).get("client_args", {})
                     server_params = result.get("config", {}).get("server", {})
                     config_id = get_config_id(client_params, server_params)
                     completed_config_ids.add(config_id)
                 except json.JSONDecodeError:
                     logger.warning(
-                        f"Could not parse line in {output_jsonl_path}: {line.strip()}"
+                        f"Could not parse line {line_num} in {output_jsonl_path}: "
+                        f"{line.strip()}"
                     )
-        logger.info(f"Loaded {len(completed_config_ids)} completed runs.")
+        logger.info(
+            f"Loaded {len(completed_config_ids)} completed runs for model "
+            f"{existing_model}"
+        )
 
     for idx, combo in enumerate(all_combinations):
         benchmark_settings = construct_benchmark_settings(combo)
 
-        client_params = benchmark_settings["client"]
+        client_params = benchmark_settings["client_args"]
         server_params = benchmark_settings["server"]
         server_args = benchmark_settings["server_args"]
 
@@ -283,7 +454,8 @@ def benchmark(
             if output_jsonl_path:
                 if config_id in completed_config_ids:
                     logger.info(
-                        f"Skipping as config_id '{config_id}' found in {output_jsonl_path}"
+                        f"Skipping as config_id '{config_id}' found in "
+                        f"{output_jsonl_path}"
                     )
                     continue
             elif output_file_path.exists():
@@ -317,11 +489,22 @@ def benchmark(
             benchmark_args.update(client_params)
             benchmark_result = bench_client.run_benchmark(benchmark_args)
 
+            # Extract additional metadata
+            model_tag = model
+            input_len, output_len = extract_token_lengths(client_params)
+
             result_with_config = {
                 "config": benchmark_settings,
                 "results": benchmark_result,
                 "cmd": full_server_cmd,
                 "constraints": constraints_for_viz,
+                "metadata": {
+                    "gpu_type": gpu_type,
+                    "gpu_count": gpus,
+                    "model_tag": model_tag,
+                    "input_tokens": input_len,
+                    "output_tokens": output_len,
+                },
             }
 
             if output_jsonl_path:
@@ -354,9 +537,27 @@ def benchmark(
                 except json.JSONDecodeError:
                     pass  # Already warned about this
 
+        # Find best throughput configurations
+        best_configs = find_best_throughput_configs(all_results, parsed_constraints)
+
+        # Create enhanced result structure
+        enhanced_results = {
+            "metadata": {
+                "gpu_type": gpu_type,
+                "gpu_count": gpus,
+                "model_tag": model,
+                "total_tests": len(all_results),
+                "constraints": constraints_for_viz,
+            },
+            "best_configurations": best_configs,
+            "test_results": all_results,
+        }
+
         with open(output_json, "w") as f:
-            json.dump(all_results, f, indent=2)
-        logger.info(f"All benchmark results saved to {output_json}")
+            json.dump(enhanced_results, f, indent=2)
+        logger.info(
+            f"All benchmark results saved to {output_json} with enhanced metadata"
+        )
 
     logger.info("-" * 80)
     logger.info("All benchmark runs completed.")
@@ -376,7 +577,7 @@ def benchmark(
 
             # Generate HTML with same base name as JSON
             json_path = pathlib.Path(output_json)
-            html_file = json_path.with_suffix('.html')
+            html_file = json_path.with_suffix(".html")
 
             logger.info("Generating visualization dashboard...")
             optimizer.generate_dashboard(output_json, output_file=str(html_file))
@@ -398,10 +599,19 @@ def benchmark(
     "--config", type=str, default=None, help="Path to visualization config file"
 )
 @click.option(
-    "-o", "--output", type=str, default=None, help="Output HTML file path (default: pareto_llm_dashboard.html)"
+    "-o",
+    "--output",
+    type=str,
+    default=None,
+    help="Output HTML file path (default: pareto_llm_dashboard.html)",
 )
 @click.option("--serve", is_flag=True, help="Start HTTP server after generating HTML")
-@click.option("--port", type=int, default=8080, help="Port to run the dashboard server (used with --serve)")
+@click.option(
+    "--port",
+    type=int,
+    default=8080,
+    help="Port to run the dashboard server (used with --serve)",
+)
 def visualize(data_file, config, output, serve, port):
     """Generate and open visualization dashboard from benchmark results."""
     try:
@@ -496,7 +706,7 @@ def visualize(data_file, config, output, serve, port):
     "--dataset",
     type=click.Choice(["random", "sharegpt"]),
     default="random",
-    help="Dataset to use for benchmarking (default: random)"
+    help="Dataset to use for benchmarking (default: random)",
 )
 def estimate_performance(
     model,
@@ -519,8 +729,13 @@ def estimate_performance(
 
     # Validate that required parameters are provided either via CLI or interactive mode
     if not interactive and (not model or input_len is None or output_len is None):
-        click.echo("Error: --model, --input-len, and --output-len are required when not using --interactive mode")
-        click.echo("Use --interactive for guided input or provide all required parameters")
+        click.echo(
+            "Error: --model, --input-len, and --output-len are required "
+            "when not using --interactive mode"
+        )
+        click.echo(
+            "Use --interactive for guided input or provide all required parameters"
+        )
         return
 
     try:
@@ -531,8 +746,14 @@ def estimate_performance(
 
             # Update parameters with interactive input
             model = model or interactive_params["model"]
-            input_len = input_len if input_len is not None else interactive_params["input_len"]
-            output_len = output_len if output_len is not None else interactive_params["output_len"]
+            input_len = (
+                input_len if input_len is not None else interactive_params["input_len"]
+            )
+            output_len = (
+                output_len
+                if output_len is not None
+                else interactive_params["output_len"]
+            )
             target = target or interactive_params["target"]
             constraints = constraints or interactive_params["constraints"]
             precision = precision or interactive_params["precision"]
@@ -542,9 +763,7 @@ def estimate_performance(
         # GPU configuration (both modes may need this)
         if interactive or not gpu or not num_gpus:
             gpu, num_gpus = collect_gpu_configuration(
-                interactive=interactive,
-                gpu=gpu,
-                num_gpus=num_gpus
+                interactive=interactive, gpu=gpu, num_gpus=num_gpus
             )
 
         # Build parameters for common estimation function
@@ -570,6 +789,7 @@ def estimate_performance(
     except Exception as e:
         click.echo(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
 
 

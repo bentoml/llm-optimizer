@@ -36,57 +36,34 @@
         const fieldOptions = {field_options_json};
         const fieldCategories = {field_categories_json};
         const defaults = {defaults_json};
+        const metadata = {metadata_json};
+        const bestConfigs = {best_configs_json};
 
-        const colors = [
+        const colors = config.visualization?.colors || [
             '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe',
             '#00f2fe', '#43e97b', '#38f9d7', '#fa709a', '#fee140'
         ];
 
-        // Constraint configuration for custom constraints
-        const CONSTRAINT_FIELDS = {
-            'ttft': {
-                label: 'TTFT',
-                description: 'Time To First Token',
-                options: [
-                    { value: 'mean_ttft_ms', label: 'Mean TTFT' },
-                    { value: 'median_ttft_ms', label: 'Median TTFT' },
-                    { value: 'p95_ttft_ms', label: 'P95 TTFT' },
-                    { value: 'p99_ttft_ms', label: 'P99 TTFT' }
-                ]
-            },
-            'itl': {
-                label: 'ITL',
-                description: 'Inter-Token Latency',
-                options: [
-                    { value: 'mean_itl_ms', label: 'Mean ITL' },
-                    { value: 'median_itl_ms', label: 'Median ITL' },
-                    { value: 'p95_itl_ms', label: 'P95 ITL' },
-                    { value: 'p99_itl_ms', label: 'P99 ITL' }
-                ]
-            },
-            'e2e': {
-                label: 'E2E',
-                description: 'End-to-End Latency',
-                options: [
-                    { value: 'mean_e2e_latency_ms', label: 'Mean E2E' },
-                    { value: 'median_e2e_latency_ms', label: 'Median E2E' },
-                    { value: 'p95_e2e_latency_ms', label: 'P95 E2E' },
-                    { value: 'p99_e2e_latency_ms', label: 'P99 E2E' }
-                ]
-            },
-            'tpot': {
-                label: 'TPOT',
-                description: 'Time Per Output Token',
-                options: [
-                    { value: 'mean_tpot_ms', label: 'Mean TPOT' },
-                    { value: 'median_tpot_ms', label: 'Median TPOT' },
-                    { value: 'p95_tpot_ms', label: 'P95 TPOT' },
-                    { value: 'p99_tpot_ms', label: 'P99 TPOT' }
-                ]
-            }
-        };
+        // Get constraint field options from config
+        function getConstraintFieldOptions() {
+            const options = [];
+            const constraintFields = ['ttft_ms', 'itl_ms', 'e2e_latency_ms', 'tpot_ms'];
+            const statTypes = ['mean', 'median', 'p95', 'p99'];
 
-        const OPERATORS = [
+            constraintFields.forEach(baseField => {
+                statTypes.forEach(statType => {
+                    const fieldName = `${statType}_${baseField}`;
+                    const field = config.fields?.[fieldName];
+                    if (field) {
+                        options.push({ value: fieldName, label: field.label });
+                    }
+                });
+            });
+
+            return options;
+        }
+
+        const OPERATORS = config.constraint_operators || [
             { value: '<=', label: '≤ (at most)', description: 'Value must be less than or equal to' },
             { value: '>=', label: '≥ (at least)', description: 'Value must be greater than or equal to' },
             { value: '<', label: '< (less than)', description: 'Value must be strictly less than' },
@@ -144,27 +121,44 @@
                     return evalOp(lhs, String(c.op || '>=').trim(), rhs);
                 });
             }
-            // Backward compatibility: object map {field: min}
-            for (const [field, minVal] of Object.entries(constraintsToCheck)) {
-                const lhs = Number(getVal(point, field));
-                const rhs = Number(minVal);
-                if (Number.isNaN(lhs) || Number.isNaN(rhs)) return false;
-                if (!(lhs >= rhs)) return false;
-            }
             return true;
         }
 
         // Helper function to get field labels for constraints
         function getFieldLabel(fieldName) {
             const field = config.fields?.[fieldName];
-            if (field) return field.label;
+            return field ? field.label : fieldName;
+        }
 
-            // Fallback to constraint field mapping
-            for (const group of Object.values(CONSTRAINT_FIELDS)) {
-                const option = group.options.find(opt => opt.value === fieldName);
-                if (option) return option.label;
-            }
-            return fieldName;
+        // Calculate best configuration dynamically based on current constraints
+        function calculateBestConfig(data, constraints, throughputField) {
+            if (!data || data.length === 0) return null;
+
+            // Filter data that satisfies constraints
+            const validConfigs = !constraints || constraints.length === 0 ?
+                data : data.filter(item => checkConstraints(item, constraints));
+
+            if (validConfigs.length === 0) return null;
+
+            // Find the config with highest throughput
+            let bestConfig = null;
+            let bestThroughput = -1;
+
+            validConfigs.forEach(item => {
+                // Try both flattened structure and raw structure
+                const throughput = item[throughputField] || item.results?.[throughputField];
+                if (throughput && throughput > bestThroughput) {
+                    bestThroughput = throughput;
+                    bestConfig = item;
+                }
+            });
+
+            return bestConfig ? {
+                throughput: bestThroughput,
+                config: (bestConfig._raw || bestConfig).config,
+                cmd: (bestConfig._raw || bestConfig).cmd,
+                originalData: bestConfig
+            } : null;
         }
 
         function addConstraintLines(traces, xAxis, yAxis, transformedData) {
@@ -213,11 +207,11 @@
         // Helper function to wrap long text
         function wrapText(text, maxWidth = 50) {
             if (!text || text.length <= maxWidth) return text;
-            
+
             const words = text.split(' ');
             const lines = [];
             let currentLine = '';
-            
+
             words.forEach(word => {
                 if ((currentLine + word).length <= maxWidth) {
                     currentLine += (currentLine ? ' ' : '') + word;
@@ -226,7 +220,7 @@
                     currentLine = word;
                 }
             });
-            
+
             if (currentLine) lines.push(currentLine);
             return lines.join('<br>');
         }
@@ -265,7 +259,13 @@
             }
 
             let text = '';
-            Object.entries(grouped).forEach(([cat, fields]) => {
+            // Define desired order: results first, then server_args, then client_args
+            const categoryOrder = ['results', 'server_args', 'client_args', 'command'];
+
+            categoryOrder.forEach(cat => {
+                const fields = grouped[cat];
+                if (!fields || fields.length === 0) return;
+
                 const catLabel = fieldCategories?.[cat]?.label || cat;
                 text += `<b>${catLabel}:</b><br>`;
                 fields.forEach(({ label, value, unit }) => {
@@ -279,6 +279,7 @@
                 });
                 text += '<br>';
             });
+
             return text;
         }
 
@@ -359,10 +360,8 @@
                         value: metric,
                         onChange: e => setMetric(e.target.value),
                         className: 'text-xs border border-gray-300 rounded px-2 py-1'
-                    }, Object.values(CONSTRAINT_FIELDS).flatMap(group =>
-                        group.options.map(opt =>
-                            React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
-                        )
+                    }, getConstraintFieldOptions().map(opt =>
+                        React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
                     )),
                     // Operator dropdown
                     React.createElement('select', {
@@ -613,7 +612,7 @@
                         // Constraint list
                         React.createElement('div', { key: 'list', className: 'space-y-1 text-xs max-h-32 overflow-y-auto' }, [
                             // Original constraints (now removable)
-                            formatConstraintsList(constraints).length > 0 && [
+                            ...(formatConstraintsList(constraints).length > 0 ? [
                                 React.createElement('div', { key: 'origLabel', className: 'text-gray-500 font-medium' }, '📊 From Benchmark:'),
                                 ...formatConstraintsList(constraints).map((t, i) => {
                                     const isDisabled = disabledOriginalConstraints.includes(i);
@@ -634,9 +633,9 @@
                                         }, isDisabled ? '↻' : '×')
                                     ]);
                                 })
-                            ],
+                            ] : []),
                             // Custom constraints (removable)
-                            customConstraints.length > 0 && [
+                            ...(customConstraints.length > 0 ? [
                                 React.createElement('div', { key: 'customLabel', className: 'text-blue-700 font-medium mt-2' }, '✏️ Custom:'),
                                 ...customConstraints.map((c, i) =>
                                     React.createElement('div', { key: `custom-${i}`, className: 'flex items-center justify-between bg-blue-100 px-2 py-1 rounded pl-4' }, [
@@ -648,7 +647,7 @@
                                         }, '×')
                                     ])
                                 )
-                            ],
+                            ] : []),
                             // Empty state
                             (formatConstraintsList(constraints).length === 0 && customConstraints.length === 0) &&
                                 React.createElement('div', { key: 'empty', className: 'text-gray-500 italic text-center py-2' }, 'No constraints')
@@ -870,8 +869,22 @@
                 // Header
                 React.createElement('header', { key: 'top', className: 'bg-transparent text-slate-900' }, [
                     React.createElement('div', { key: 'container', className: 'max-w-[1400px] mx-auto w-full px-5 py-6' }, [
-                        React.createElement('div', { key: 'titleWrap', className: 'w-full flex items-center justify-center' }, [
-                            React.createElement('div', { key: 'title', className: 'text-2xl md:text-3xl font-bold tracking-tight' }, 'LLM Optimizer')
+                        React.createElement('div', { key: 'titleWrap', className: 'w-full flex flex-col items-center justify-center gap-4' }, [
+                            React.createElement('div', { key: 'title', className: 'text-2xl md:text-3xl font-bold tracking-tight' }, 'LLM Optimizer'),
+                            metadata && Object.keys(metadata).length > 0 && React.createElement('div', { key: 'metadata', className: 'flex flex-wrap gap-4 text-sm text-slate-600' }, [
+                                metadata.gpu_type && React.createElement('span', { key: 'gpu', className: 'flex items-center gap-1' }, [
+                                    React.createElement('span', { key: 'label', className: 'font-semibold' }, 'GPU:'),
+                                    `${metadata.gpu_type} x${metadata.gpu_count || 1}`
+                                ]),
+                                metadata.model_tag && React.createElement('span', { key: 'model', className: 'flex items-center gap-1' }, [
+                                    React.createElement('span', { key: 'label', className: 'font-semibold' }, 'Model:'),
+                                    metadata.model_tag
+                                ]),
+                                metadata.total_tests && React.createElement('span', { key: 'tests', className: 'flex items-center gap-1' }, [
+                                    React.createElement('span', { key: 'label', className: 'font-semibold' }, 'Tests:'),
+                                    metadata.total_tests
+                                ])
+                            ])
                         ])
                     ])
                 ]),
@@ -884,6 +897,68 @@
                             React.createElement('div', { key: 'chartWrap', className: 'w-full' }, [
                                 React.createElement(Chart, { key: 'c', dataset, xAxis, yAxis, showLines, showPoints, constraints: effectiveConstraints, onSelect: (pt) => setSelectedPoint(pt) })
                             ])
+                        ]),
+                        React.createElement('section', { key: 'best', className: 'rounded-xl border border-slate-200 bg-white p-4' }, [
+                            React.createElement('h2', { key: 'title', className: 'text-lg font-semibold mb-3' }, 'Best Configuration'),
+                            React.createElement('div', { key: 'config', className: 'space-y-3' }, (() => {
+                                // Determine if we have any active constraints (benchmark + custom)
+                                const hasActiveConstraints = effectiveConstraints && effectiveConstraints.length > 0;
+
+                                // Determine which throughput type to show based on Y-axis
+                                const isInputThroughput = yAxis === 'input_throughput';
+                                const throughputField = isInputThroughput ? 'input_throughput' : 'output_throughput';
+
+                                // Calculate best configuration dynamically based on current constraints
+                                const selectedConfig = calculateBestConfig(dataset, effectiveConstraints, throughputField);
+
+                                if (!selectedConfig) {
+                                    return React.createElement('div', { className: 'text-sm text-slate-500' }, 'No valid configuration found');
+                                }
+
+                                const title = `Best ${isInputThroughput ? 'Input' : 'Output'} Throughput`;
+                                const constraintLabel = hasActiveConstraints ? 'With Constraints' : 'Unconstrained';
+
+                                return React.createElement('div', { key: 'single-config' }, [
+                                    React.createElement('h3', { key: 'config-title', className: 'text-sm font-medium text-slate-600 mb-2' }, title),
+                                    React.createElement('div', { key: 'config-card', className: 'border border-slate-200 rounded-lg p-3' }, [
+                                        React.createElement('div', { key: 'header', className: 'flex items-center justify-between mb-2' }, [
+                                            React.createElement('h4', { key: 'subtitle', className: 'font-medium text-xs text-slate-600' }, constraintLabel),
+                                            React.createElement('div', { key: 'throughput', className: 'text-lg font-bold text-slate-900' },
+                                                `${(selectedConfig.throughput || 0).toFixed(1)} tok/s`
+                                            )
+                                        ]),
+                                        React.createElement('div', { key: 'details', className: 'text-xs text-slate-600 mb-2' }, (() => {
+                                            const parts = [];
+
+                                            // Get values from flattened data
+                                            const originalData = selectedConfig.originalData;
+                                            const requestRate = originalData?.request_rate;
+                                            const maxConcurrency = originalData?.max_concurrency;
+
+                                            if (requestRate !== undefined && requestRate !== Infinity) {
+                                                parts.push(`request_rate: ${requestRate}`);
+                                            }
+
+                                            if (maxConcurrency !== undefined) {
+                                                parts.push(`max_concurrency: ${maxConcurrency}`);
+                                            }
+
+                                            return parts.length > 0 ? parts.join(', ') : '';
+                                        })()),
+                                        selectedConfig.cmd && React.createElement('div', { key: 'cmd-wrapper', className: 'relative' }, [
+                                            React.createElement('pre', { key: 'cmd', className: 'p-2 bg-slate-50 rounded text-xs overflow-x-auto' },
+                                                React.createElement('code', {}, selectedConfig.cmd)
+                                            ),
+                                            React.createElement('button', {
+                                                key: 'copy',
+                                                className: 'absolute top-1 right-1 p-1 rounded hover:bg-slate-200',
+                                                onClick: () => navigator.clipboard.writeText(selectedConfig.cmd),
+                                                title: 'Copy to clipboard'
+                                            }, React.createElement(Copy, { size: 12 }))
+                                        ])
+                                    ])
+                                ]);
+                            })())
                         ]),
                         React.createElement('div', { key: 'tableWrap', className: 'overflow-visible' }, [
                             React.createElement('div', { key: 'tableScroller', className: 'overflow-visible' }, [

@@ -138,6 +138,14 @@
       "unit": "ms",
       "field_category": "results"
     },
+    "p95_ttft_ms": {
+      "label": "P95 TTFT",
+      "description": "95th percentile Time To First Token",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
     "p99_ttft_ms": {
       "label": "P99 TTFT",
       "description": "99th percentile Time To First Token",
@@ -160,6 +168,14 @@
     "median_itl_ms": {
       "label": "Median ITL",
       "description": "Median Inter-Token Latency",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "p95_itl_ms": {
+      "label": "P95 ITL",
+      "description": "95th percentile Inter-Token Latency",
       "type": "numerical",
       "category": "latency",
       "unit": "ms",
@@ -192,9 +208,81 @@
       "unit": "ms",
       "field_category": "results"
     },
+    "p95_e2e_latency_ms": {
+      "label": "P95 E2E Latency",
+      "description": "95th percentile end-to-end latency",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
     "p99_e2e_latency_ms": {
       "label": "P99 E2E Latency",
       "description": "99th percentile end-to-end latency",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "mean_tpot_ms": {
+      "label": "Mean TPOT",
+      "description": "Mean Time Per Output Token",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "median_tpot_ms": {
+      "label": "Median TPOT",
+      "description": "Median Time Per Output Token",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "p95_tpot_ms": {
+      "label": "P95 TPOT",
+      "description": "95th percentile Time Per Output Token",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "p99_tpot_ms": {
+      "label": "P99 TPOT",
+      "description": "99th percentile Time Per Output Token",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "std_ttft_ms": {
+      "label": "Std TTFT",
+      "description": "Standard deviation Time To First Token",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "std_itl_ms": {
+      "label": "Std ITL",
+      "description": "Standard deviation Inter-Token Latency",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "std_e2e_latency_ms": {
+      "label": "Std E2E Latency",
+      "description": "Standard deviation end-to-end latency",
+      "type": "numerical",
+      "category": "latency",
+      "unit": "ms",
+      "field_category": "results"
+    },
+    "std_tpot_ms": {
+      "label": "Std TPOT",
+      "description": "Standard deviation Time Per Output Token",
       "type": "numerical",
       "category": "latency",
       "unit": "ms",
@@ -243,5 +331,17 @@
     "title": "Pareto LLM Optimizer Dashboard",
     "subtitle": "Interactive Performance Analysis & Optimization Tool",
     "description": "Select different metrics for X and Y axes to analyze performance relationships and identify Pareto optimal configurations. Hover over data points to see detailed configuration information."
+  },
+  "constraint_operators": [
+    {"value": "<=", "label": "≤ (at most)", "description": "Value must be less than or equal to"},
+    {"value": ">=", "label": "≥ (at least)", "description": "Value must be greater than or equal to"},
+    {"value": "<", "label": "< (less than)", "description": "Value must be strictly less than"},
+    {"value": ">", "label": "> (greater than)", "description": "Value must be strictly greater than"}
+  ],
+  "visualization": {
+    "colors": [
+      "#667eea", "#764ba2", "#f093fb", "#f5576c", "#4facfe",
+      "#00f2fe", "#43e97b", "#38f9d7", "#fa709a", "#fee140"
+    ]
   }
 } 
