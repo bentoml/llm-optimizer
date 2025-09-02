@@ -40,8 +40,8 @@ def construct_benchmark_settings(combo: list[lo_args.BaseArg]) -> dict[str, t.An
     server_kv_pairs = lo_args.get_all_kv_pairs(server_args)
     return {
         "client_args": dict(client_kv_pairs),
-        "server": dict(server_kv_pairs),
-        "server_args": server_cmd_args,
+        "server_args": dict(server_kv_pairs),
+        "server_cmd_args": server_cmd_args,
     }
 
 
@@ -424,7 +424,7 @@ def benchmark(
                         return
 
                     client_params = result.get("config", {}).get("client_args", {})
-                    server_params = result.get("config", {}).get("server", {})
+                    server_params = result.get("config", {}).get("server_args", {})
                     config_id = get_config_id(client_params, server_params)
                     completed_config_ids.add(config_id)
                 except json.JSONDecodeError:
@@ -441,8 +441,8 @@ def benchmark(
         benchmark_settings = construct_benchmark_settings(combo)
 
         client_params = benchmark_settings["client_args"]
-        server_params = benchmark_settings["server"]
-        server_args = benchmark_settings["server_args"]
+        server_params = benchmark_settings["server_args"]
+        server_cmd_args = benchmark_settings["server_cmd_args"]
 
         config_id = get_config_id(client_params, server_params)
         output_file_path = output_dir / f"{config_id}.json"
@@ -470,7 +470,7 @@ def benchmark(
 
         # Build Server Command & Start Server
         server_process = None
-        full_server_cmd = f"{server_cmd} {' '.join(server_args)}"
+        full_server_cmd = f"{server_cmd} {' '.join(server_cmd_args)}"
 
         try:
             server_process = start_server(full_server_cmd, {}, ready_url, mute_server)
@@ -540,6 +540,13 @@ def benchmark(
         # Find best throughput configurations
         best_configs = find_best_throughput_configs(all_results, parsed_constraints)
 
+        # Extract input/output lengths from first result (they should be consistent)
+        input_len = output_len = None
+        if all_results:
+            first_result = all_results[0]
+            first_client_params = first_result.get("config", {}).get("client_args", {})
+            input_len, output_len = extract_token_lengths(first_client_params)
+
         # Create enhanced result structure
         enhanced_results = {
             "metadata": {
@@ -548,6 +555,8 @@ def benchmark(
                 "model_tag": model,
                 "total_tests": len(all_results),
                 "constraints": constraints_for_viz,
+                "input_len": input_len,
+                "output_len": output_len,
             },
             "best_configurations": best_configs,
             "test_results": all_results,

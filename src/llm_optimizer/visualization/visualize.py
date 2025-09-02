@@ -76,6 +76,9 @@ class ParetoLLMOptimizer:
         try:
             with open(config_file, encoding="utf-8") as f:
                 config = json.load(f)
+
+            # Framework will be detected later in load_benchmark_data
+
             logger.info(f"Loaded configuration from {config_file}")
             return config
         except FileNotFoundError:
@@ -85,34 +88,7 @@ class ParetoLLMOptimizer:
             logger.error(f"Error parsing configuration file: {e}")
             return {}
 
-    def extract_value(self, data: dict, path: str):
-        """Extract value from nested dictionary using dot notation path."""
-        keys = path.split(".")
-        current = data
-        for key in keys:
-            if isinstance(current, dict) and key in current:
-                current = current[key]
-            else:
-                return None
-        return current
 
-    def flatten_data(self, data: list) -> list:
-        """Flatten the nested data structure according to the data mapping."""
-        if not self.config or "data_mapping" not in self.config:
-            return data
-
-        flattened = []
-        mapping = self.config["data_mapping"]
-
-        for item in data:
-            flattened_item = {}
-            for field_name, data_path in mapping.items():
-                value = self.extract_value(item, data_path)
-                if value is not None:
-                    flattened_item[field_name] = value
-            flattened.append(flattened_item)
-
-        return flattened
 
     def load_benchmark_data(self, data_file: str) -> dict:
         """Load benchmark data from JSON files."""
@@ -162,40 +138,21 @@ class ParetoLLMOptimizer:
             logger.error(f"Error loading {data_file}: {e}")
             raise
 
-        # Flatten the data according to the mapping
-        flattened_data = self.flatten_data(data)
-        logger.info(f"Loaded {len(flattened_data)} benchmark records from {data_file}")
+        logger.info(f"Loaded {len(data)} benchmark records from {data_file}")
         logger.info(f"Found constraints: {constraints}")
 
         return {
-            "data": flattened_data,
+            "data": data,
             "constraints": constraints,
             "data_files": json_files,
             "metadata": metadata,
             "best_configurations": best_configurations,
         }
 
-    def get_available_fields(self, data: list) -> set:
-        """Get fields that have data in the dataset."""
-        available_fields = set()
-
-        for item in data:
-            for field_name in item.keys():
-                if item[field_name] is not None and item[field_name] != "":
-                    available_fields.add(field_name)
-
-        return available_fields
-
     def get_field_options(self, data: list = None) -> dict:
         """Get field options by category, with disabled fields for missing data."""
         if not self.config or "fields" not in self.config:
             return {}
-
-        # Get available fields if data is provided
-        available_fields = set()
-        if data is not None:
-            available_fields = self.get_available_fields(data)
-            logger.info(f"Available fields with data: {available_fields}")
 
         categories = {}
         for field_id, field_info in self.config["fields"].items():
@@ -211,16 +168,7 @@ class ParetoLLMOptimizer:
                     "fields": {},
                 }
 
-            # Add disabled flag for fields without data
-            field_info_copy = field_info.copy()
-            if data is not None and field_id not in available_fields:
-                field_info_copy["disabled"] = True
-                field_info_copy["disabled_reason"] = "No data available"
-                logger.info(f"Field '{field_id}' disabled - no data available")
-            else:
-                field_info_copy["disabled"] = False
-
-            categories[category]["fields"][field_id] = field_info_copy
+            categories[category]["fields"][field_id] = field_info
 
         return categories
 
@@ -242,10 +190,6 @@ class ParetoLLMOptimizer:
 
         with open(template_path, encoding="utf-8") as f:
             html_content = f.read()
-
-        # Get available fields with data
-        available_fields = self.get_available_fields(data_dict["data"])
-        logger.info(f"Available fields: {available_fields}")
 
         # Prepare data for embedding
         data_json = json.dumps(data_dict["data"], indent=2)

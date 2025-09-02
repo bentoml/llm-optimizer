@@ -93,12 +93,69 @@
             return result;
         }
 
+        // Helper to access nested data structure
+        function getNestedValue(obj, path) {
+            if (!path || !obj) return undefined;
+
+            // Handle special mappings for common fields
+            const mapping = {
+                'input_throughput': 'results.input_throughput',
+                'output_throughput': 'results.output_throughput',
+                'mean_ttft_ms': 'results.mean_ttft_ms',
+                'median_ttft_ms': 'results.median_ttft_ms',
+                'p95_ttft_ms': 'results.p95_ttft_ms',
+                'p99_ttft_ms': 'results.p99_ttft_ms',
+                'mean_itl_ms': 'results.mean_itl_ms',
+                'median_itl_ms': 'results.median_itl_ms',
+                'p95_itl_ms': 'results.p95_itl_ms',
+                'p99_itl_ms': 'results.p99_itl_ms',
+                'mean_e2e_latency_ms': 'results.mean_e2e_latency_ms',
+                'median_e2e_latency_ms': 'results.median_e2e_latency_ms',
+                'p95_e2e_latency_ms': 'results.p95_e2e_latency_ms',
+                'p99_e2e_latency_ms': 'results.p99_e2e_latency_ms',
+                'mean_tpot_ms': 'results.mean_tpot_ms',
+                'median_tpot_ms': 'results.median_tpot_ms',
+                'p95_tpot_ms': 'results.p95_tpot_ms',
+                'p99_tpot_ms': 'results.p99_tpot_ms',
+                'max_concurrency': 'config.client_args.max_concurrency',
+                'request_rate': 'config.client_args.request_rate',
+                'cmd': 'cmd'
+            };
+
+            const actualPath = mapping[path] || path;
+
+            // If not in mapping, check if it's a server arg
+            if (!mapping[path]) {
+                const serverArgValue = getPathValue(obj, `config.server_args.${path}`);
+                if (serverArgValue !== undefined) {
+                    return serverArgValue;
+                }
+            }
+
+            return getPathValue(obj, actualPath);
+        }
+
+        // Helper function to traverse path
+        function getPathValue(obj, path) {
+            const keys = path.split('.');
+            let current = obj;
+
+            for (const key of keys) {
+                if (current && typeof current === 'object' && key in current) {
+                    current = current[key];
+                } else {
+                    return undefined;
+                }
+            }
+            return current;
+        }
+
         function checkConstraints(point, dynamicConstraints) {
             const constraintsToCheck = dynamicConstraints || constraints;
-            if (!constraintsToCheck || (Array.isArray(constraintsToCheck) && constraintsToCheck.length === 0)) return false;
+            // If no constraints, all points satisfy
+            if (!constraintsToCheck || (Array.isArray(constraintsToCheck) && constraintsToCheck.length === 0)) return true;
             const getVal = (p, name) => {
-                const src = p && typeof p === 'object' ? (p._raw || p) : {};
-                return src[name];
+                return getNestedValue(p, name);
             };
             const evalOp = (lhs, op, rhs) => {
                 switch (op) {
@@ -145,8 +202,7 @@
             let bestThroughput = -1;
 
             validConfigs.forEach(item => {
-                // Try both flattened structure and raw structure
-                const throughput = item[throughputField] || item.results?.[throughputField];
+                const throughput = item.results?.[throughputField];
                 if (throughput && throughput > bestThroughput) {
                     bestThroughput = throughput;
                     bestConfig = item;
@@ -155,8 +211,8 @@
 
             return bestConfig ? {
                 throughput: bestThroughput,
-                config: (bestConfig._raw || bestConfig).config,
-                cmd: (bestConfig._raw || bestConfig).cmd,
+                config: bestConfig.config,
+                cmd: bestConfig.cmd,
                 originalData: bestConfig
             } : null;
         }
@@ -226,36 +282,52 @@
         }
 
         function generateHoverText(point) {
-            if (!config.fields) return JSON.stringify(point, null, 2);
-            const grouped = {};
-            Object.entries(config.fields).forEach(([id, info]) => {
-                if (point[id] === undefined) return;
-                const cat = info.field_category || 'other';
-                if (!grouped[cat]) grouped[cat] = [];
-                const rawVal = point[id];
-                const num = Number(rawVal);
-                const value = isFinite(num) ? num.toFixed(2) : rawVal;
-                const label = info.label;
-                const unit = info.unit ? ` ${info.unit}` : '';
-                grouped[cat].push({ label, value, unit });
-            });
+            if (!point) return '';
 
-            // Compute inverse values and insert at the top of the Results group
-            const derivedItems = [];
-            Object.entries(config.fields).forEach(([id, info]) => {
-                if (info?.x_axis_type !== 'inverse') return;
-                const raw = point[id];
-                const val = Number(raw);
-                if (!isFinite(val) || val === 0) return;
-                const inv = info.unit === 'ms' ? (1000 / val) : (1 / val);
-                const label = info.x_axis_name || `1/${info.label}`;
-                const unit = info.x_axis_unit || (info.unit === 'ms' ? 'tokens/s' : '1/' + (info.unit || 'units'));
-                derivedItems.push({ label, value: inv.toFixed(2), unit: unit ? ` ${unit}` : '' });
-            });
-            if (derivedItems.length) {
-                const resultsKey = fieldCategories?.results ? 'results' : (fieldCategories?.result ? 'result' : 'other');
-                if (!grouped[resultsKey]) grouped[resultsKey] = [];
-                grouped[resultsKey] = [...derivedItems, ...grouped[resultsKey]];
+            const grouped = {
+                'results': [],
+                'server_args': [],
+                'client_args': [],
+                'command': []
+            };
+
+            // Add results
+            if (point.results) {
+                Object.entries(point.results).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null) {
+                        const field = config.fields?.[key];
+                        const label = field?.label || key;
+                        const unit = field?.unit || '';
+                        const num = Number(value);
+                        const displayValue = isFinite(num) ? num.toFixed(2) : value;
+                        grouped.results.push({ label, value: displayValue, unit: unit ? ` ${unit}` : '' });
+                    }
+                });
+            }
+
+            // Add client args
+            if (point.config?.client_args) {
+                Object.entries(point.config.client_args).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null && value !== Infinity) {
+                        const label = key.replace(/_/g, ' ');
+                        grouped.client_args.push({ label, value: String(value), unit: '' });
+                    }
+                });
+            }
+
+            // Add server args
+            if (point.config?.server_args) {
+                Object.entries(point.config.server_args).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null) {
+                        const label = key.replace(/_/g, ' ');
+                        grouped.server_args.push({ label, value: String(value), unit: '' });
+                    }
+                });
+            }
+
+            // Add command
+            if (point.cmd) {
+                grouped.command.push({ label: 'Command', value: point.cmd, unit: '' });
             }
 
             let text = '';
@@ -400,15 +472,28 @@
         function useTransformedData(data, xAxis, yAxis) {
             return useMemo(() => {
                 return data
-                    .filter(p => p[xAxis] !== undefined && p[yAxis] !== undefined)
+                    .filter(p => {
+                        const xVal = getNestedValue(p, xAxis);
+                        const yVal = getNestedValue(p, yAxis);
+                        return xVal !== undefined && yVal !== undefined;
+                    })
                     .map(p => {
-                        const t = { ...p };
+                        const xVal = getNestedValue(p, xAxis);
+                        const yVal = getNestedValue(p, yAxis);
+
+                        // Create flat object for chart with x and y values
+                        const t = {
+                            [xAxis]: xVal,
+                            [yAxis]: yVal,
+                            _original: p
+                        };
+
+                        // Transform latency values if needed
                         const f = config.fields?.[xAxis];
-                        if (f?.category === 'latency' && p[xAxis] > 0) {
-                            t[xAxis] = f.unit === 'ms' ? (1000 / p[xAxis]) : (1 / p[xAxis]);
+                        if (f?.category === 'latency' && xVal > 0) {
+                            t[xAxis] = f.unit === 'ms' ? (1000 / xVal) : (1 / xVal);
                         }
-                        // keep original values for tooltip
-                        t._raw = p;
+
                         return t;
                     });
             }, [data, xAxis, yAxis]);
@@ -445,7 +530,7 @@
                 }
                 if (showPoints) {
                     if (paretoData.length) {
-                        const withC = paretoData.map(d => ({ d, ok: checkConstraints(d, dynamicConstraints) }));
+                        const withC = paretoData.map(d => ({ d, ok: checkConstraints(d._original, dynamicConstraints) }));
                         const sat = withC.filter(p => p.ok).map(({ d }) => d);
                         const uns = withC.filter(p => !p.ok).map(({ d }) => d);
                         if (sat.length) series.push({
@@ -460,14 +545,14 @@
                                 padding: 0,
                                 extraCssText: 'background: linear-gradient(180deg, #22c55e 0%, #065f46 85%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff; word-wrap: break-word; white-space: normal;',
                                 formatter: (p) => {
-                                    const m = p.data && p.data.__meta;
-                                    const txt = m ? generateHoverText(m.point) : '';
+                                    const d = p.data?.__row;
+                                    const txt = d ? generateHoverText(d._original || d) : '';
                                     const title = '<span style=\'color:#dcfce7;font-weight:800\'>Pareto ✓ (constraints)</span>';
                                     return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px;word-wrap:break-word;white-space:normal;\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
                                 }
                             },
                             z: 3,
-                            data: sat.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._raw || d) } }))
+                            data: sat.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._original || d) } }))
                         });
                         if (uns.length) series.push({
                             type: 'scatter', name: 'Pareto', symbolSize: 13,
@@ -480,14 +565,14 @@
                                 padding: 0,
                                 extraCssText: 'background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 35%, #000000 100%); border-radius: 10px; padding: 12px; color: #ffffff; word-wrap: break-word; white-space: normal;',
                                 formatter: (p) => {
-                                    const m = p.data && p.data.__meta;
-                                    const txt = m ? generateHoverText(m.point) : '';
+                                    const d = p.data?.__row;
+                                    const txt = d ? generateHoverText(d._original || d) : '';
                                     const title = '<span style=\'color:#eafff7;font-weight:800\'>Pareto</span>';
                                     return `<div style=\'color:#ffffff;max-width:360px;letter-spacing:.2px;word-wrap:break-word;white-space:normal;\'>${title}<div style=\'margin-top:8px;\'>${txt}</div></div>`;
                                 }
                             },
                             z: 2,
-                            data: uns.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._raw || d) } }))
+                            data: uns.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._original || d) } }))
                         });
                     }
                     if (nonParetoData.length) series.push({
@@ -500,10 +585,10 @@
                                 borderWidth: 0,
                                 padding: 0,
                                 extraCssText: 'background: linear-gradient(180deg, #9ca3af 0%, #374151 90%, #1F2937 100%);border-radius: 10px; padding: 12px; color: #ffffff; word-wrap: break-word; white-space: normal;',
-                                formatter: (p) => { const m = p.data && p.data.__meta; const txt = m ? generateHoverText(m.point) : ''; const label = '<span style=\'color:#ffffff;font-weight:700\'>Non‑Pareto</span>'; return `<div style=\'color:#ffffff;max-width:320px;word-wrap:break-word;white-space:normal;\'>${label}<div style=\'margin-top:6px;\'>${txt}</div></div>`; }
+                                formatter: (p) => { const d = p.data?.__row; const txt = d ? generateHoverText(d._original || d) : ''; const label = '<span style=\'color:#ffffff;font-weight:700\'>Non‑Pareto</span>'; return `<div style=\'color:#ffffff;max-width:320px;word-wrap:break-word;white-space:normal;\'>${label}<div style=\'margin-top:6px;\'>${txt}</div></div>`; }
                             },
                         z: 1,
-                        data: nonParetoData.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._raw || d) } }))
+                        data: nonParetoData.map(d => ({ value: [d[xAxis], d[yAxis]], __row: d, tooltip: { formatter: () => generateHoverText(d._original || d) } }))
                     });
                 }
 
@@ -539,10 +624,39 @@
                 };
             }, [dataset, xAxis, yAxis, showLines, showPoints, dynamicConstraints]);
 
-            return React.createElement('div', { ref, className: 'w-full h-[65vh] min-h-[420px] overflow-visible' });
+            return React.createElement('div', { ref, className: 'w-full h-[32vh] min-h-[300px] overflow-visible' });
         }
 
-        function Controls({ xAxis, yAxis, showLines, showPoints, onChange, fieldOptions, customConstraints, setCustomConstraints, showAddForm, setShowAddForm, disabledOriginalConstraints, setDisabledOriginalConstraints }) {
+        // Helper function for axis selectors
+        function createSelectOptions(id, fieldOptions) {
+            const groups = [];
+            Object.entries(fieldOptions).forEach(([categoryId, categoryInfo]) => {
+                const options = [];
+                Object.entries(categoryInfo.fields).forEach(([fieldId, fieldInfo]) => {
+                    if (id === 'xAxis') {
+                        const hasXAxisName = fieldInfo && String(fieldInfo.x_axis_name || '').trim().length > 0;
+                        if (!hasXAxisName) return;
+                        if (categoryId !== 'latency') return;
+                        const label = fieldInfo.x_axis_name || fieldInfo.label || fieldId;
+                        const unit = fieldInfo.x_axis_unit || fieldInfo.unit || '';
+                        options.push(
+                            React.createElement('option', { key: fieldId, value: fieldId, disabled: !!fieldInfo.disabled }, `${label}${unit ? ' (' + unit + ')' : ''}${fieldInfo.disabled ? ' (No data)' : ''}`)
+                        );
+                        return;
+                    }
+                    if (id === 'yAxis' && categoryId !== 'performance') return;
+                    options.push(
+                        React.createElement('option', { key: fieldId, value: fieldId, disabled: !!fieldInfo.disabled }, `${fieldInfo.label}${fieldInfo.unit ? ' (' + fieldInfo.unit + ')' : ''}${fieldInfo.disabled ? ' (No data)' : ''}`)
+                    );
+                });
+                if (options.length) {
+                    groups.push(React.createElement('optgroup', { key: categoryId, label: categoryInfo.label }, options));
+                }
+            });
+            return groups;
+        }
+
+        function Controls({ showLines, showPoints, onChange, fieldOptions, customConstraints, setCustomConstraints, showAddForm, setShowAddForm, disabledOriginalConstraints, setDisabledOriginalConstraints, metadata }) {
             function selectOptions(id) {
                 const groups = [];
                 Object.entries(fieldOptions).forEach(([categoryId, categoryInfo]) => {
@@ -574,23 +688,27 @@
             }
 
             return React.createElement('div', { className: 'bg-slate-100 border border-slate-200 rounded-xl p-5' }, [
-                React.createElement('div', { key: 'grid', className: 'grid grid-cols-1 md:grid-cols-12 gap-5 items-start min-w-0' }, [
-                    // X
-                    React.createElement('div', { key: 'x', className: 'flex flex-col gap-3 md:col-span-4 min-w-0' }, [
-                        React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-700 font-semibold' }, 'X-Axis'),
-                        React.createElement('select', { id: 'xAxis', value: xAxis, onChange: e => onChange({ xAxis: e.target.value }), className: 'w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400' }, selectOptions('xAxis')),
-                        React.createElement('div', { className: 'text-xs text-slate-500 italic' }, config.fields?.[xAxis]?.description || '')
+                React.createElement('div', { key: 'grid', className: 'grid grid-cols-1 md:grid-cols-2 gap-5 items-start min-w-0' }, [
+                    // Metadata
+                    React.createElement('div', { key: 'metadata', className: 'flex flex-col gap-3' }, [
+                        metadata && Object.keys(metadata).length > 0 && React.createElement('div', { className: 'space-y-1 text-xs' }, [
+                            metadata.gpu_type && React.createElement('div', { key: 'gpu', className: 'flex items-center gap-1' }, [
+                                React.createElement('span', { className: 'font-semibold text-slate-700' }, 'GPU:'),
+                                React.createElement('span', { className: 'text-slate-600' }, `${metadata.gpu_type} x${metadata.gpu_count || 1}`)
+                            ]),
+                            metadata.model_tag && React.createElement('div', { key: 'model', className: 'flex items-center gap-1' }, [
+                                React.createElement('span', { className: 'font-semibold text-slate-700' }, 'Model:'),
+                                React.createElement('span', { className: 'text-slate-600' }, metadata.model_tag)
+                            ]),
+                            (metadata.input_len !== undefined || metadata.output_len !== undefined) && React.createElement('div', { key: 'tokens', className: 'flex items-center gap-1' }, [
+                                React.createElement('span', { className: 'font-semibold text-slate-700' }, 'Input→Output:'),
+                                React.createElement('span', { className: 'text-slate-600' }, `${metadata.input_len || '?'}→${metadata.output_len || '?'} tokens`)
+                            ])
+                        ])
                     ]),
 
-                    // Y
-                    React.createElement('div', { key: 'y', className: 'flex flex-col gap-3 md:col-span-4 min-w-0' }, [
-                        React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-700 font-semibold' }, 'Y-Axis'),
-                        React.createElement('select', { id: 'yAxis', value: yAxis, onChange: e => onChange({ yAxis: e.target.value }), className: 'w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400' }, selectOptions('yAxis')),
-                        React.createElement('div', { className: 'text-xs text-slate-500 italic' }, config.fields?.[yAxis]?.description || '')
-                    ]),
-
-                    // Constraints (left of Display)
-                    React.createElement('div', { key: 'constraints', className: 'flex flex-col md:col-span-4 min-w-0' }, [
+                    // Constraints
+                    React.createElement('div', { key: 'constraints', className: 'flex flex-col min-w-0' }, [
                         React.createElement('div', { key: 'header', className: 'flex items-center justify-between mb-2' }, [
                             React.createElement('label', { className: 'uppercase text-[12px] tracking-wide text-slate-700 font-semibold' }, 'Constraints'),
                             React.createElement('button', {
@@ -655,20 +773,6 @@
                     ]),
                 ]),
 
-                // Legend + constraints summary
-                React.createElement('div', { key: 'legendSummary', className: 'mt-3 flex flex-col gap-2 text-xs text-slate-600' }, [
-                    React.createElement('div', { key: 'pts', className: 'flex flex-wrap items-center gap-4' }, [
-                        React.createElement('div', { key: 'lg1', className: 'flex items-center gap-2' }, [
-                            React.createElement('span', { key: 'dot1', className: 'inline-block w-3 h-3 rounded-full', style: { backgroundColor: '#0284c7', border: '2px solid #ffffff' } }),
-                            React.createElement('span', { key: 'txt1' }, 'Blue: Pareto points')
-                        ]),
-                        React.createElement('div', { key: 'lg2', className: 'flex items-center gap-2' }, [
-                            React.createElement('span', { key: 'dot2', className: 'inline-block w-3 h-3 rounded-full', style: { backgroundColor: '#10b981', boxShadow: '0 0 0 2px #a7f3d0 inset' } }),
-                            React.createElement('span', { key: 'txt2' }, 'Green: Pareto points that satisfy constraints')
-                        ])
-                    ]),
-                    React.createElement('div', { key: 'paretoNote', className: 'text-[11px] text-slate-500' }, 'Pareto points lie on the frontier where no point can improve one objective without worsening the other.')
-                ])
             ]);
         }
 
@@ -696,44 +800,65 @@
                 if (!onlyPareto) return dataset;
                 // recompute pareto based on current axes
                 if (!dataset || dataset.length === 0) return [];
-                const pts = dataset.map(d => ({ x: d[xAxis], y: d[yAxis], original: d }));
+                const pts = dataset.map(d => ({
+                    x: d[xAxis],
+                    y: d[yAxis],
+                    original: d
+                }));
                 const p = getParetoPoints(pts);
                 const set = new Set(p.map(i => i.original));
                 return dataset.filter(d => set.has(d));
             }, [dataset, onlyPareto, xAxis, yAxis]);
 
+            // Extract all available fields from the dataset
             const allFields = useMemo(() => {
-                const s = new Set();
-                filtered.forEach(p => Object.keys(p).forEach(k => s.add(k)));
-                return Array.from(s).sort();
+                if (!filtered.length) return [];
+                const firstItem = filtered[0];
+                const fields = new Set();
+
+                // Add client args
+                if (firstItem.config?.client_args) {
+                    Object.keys(firstItem.config.client_args).forEach(key => fields.add(key));
+                }
+
+                // Add server args
+                if (firstItem.config?.server_args) {
+                    Object.keys(firstItem.config.server_args).forEach(key => fields.add(key));
+                }
+
+                // Add cmd
+                if (firstItem.cmd) {
+                    fields.add('cmd');
+                }
+
+                return Array.from(fields);
             }, [filtered]);
 
-            // Filter out latency and throughput-related fields for the table view
-            const visibleFields = useMemo(() => {
-                return allFields.filter(f => {
-                    // ignore internal/meta fields
-                    if (typeof f === 'string' && f.startsWith('_')) return false;
-                    const info = config.fields?.[f];
-                    // show only fields known in config
-                    if (!info) return false;
-                    const cat = info.category || info.field_category;
-                    if (cat === 'latency' || cat === 'performance') return false;
-                    return true;
-                });
-            }, [allFields]);
-
-            // Ensure tp_size is placed right after dp_size
+            // Filter and order fields for display - check if any row has data for each field
             const orderedFields = useMemo(() => {
-                const arr = [...visibleFields];
-                const dpIdx = arr.indexOf('dp_size');
-                const tpIdx = arr.indexOf('tp_size');
-                if (tpIdx !== -1) {
-                    const [tp] = arr.splice(tpIdx, 1);
-                    const insertIdx = dpIdx !== -1 ? dpIdx + 1 : 0;
-                    arr.splice(insertIdx, 0, tp);
+                const fieldOrder = ['cmd', 'max_concurrency', 'request_rate'];
+
+                // Add all server args dynamically
+                const serverArgFields = [];
+                if (filtered.length > 0) {
+                    const firstItem = filtered[0];
+                    if (firstItem.config?.server_args) {
+                        Object.keys(firstItem.config.server_args).forEach(key => {
+                            serverArgFields.push(key);
+                        });
+                    }
                 }
-                return arr;
-            }, [visibleFields]);
+
+                const allPossibleFields = [...fieldOrder, ...serverArgFields];
+
+                // Only include fields that have data in at least one row
+                return allPossibleFields.filter(field => {
+                    return filtered.some(row => {
+                        const value = getNestedValue(row._original || row, field);
+                        return value !== undefined && value !== null && value !== '';
+                    });
+                });
+            }, [filtered]);
 
             // Sort rows by x-axis value (dataset already uses 1/x when needed)
             const sortedRows = useMemo(() => {
@@ -783,16 +908,17 @@
                     ]),
                     React.createElement('tbody', { key: 'b' }, sortedRows.map((row, idx) => (
                         React.createElement('tr', { key: idx, id: `row-${idx}`, className: (selectedKey && makeKey(row[xAxis], row[yAxis]) === selectedKey ? 'bg-teal-100 transition-colors' : 'odd:bg-white even:bg-slate-50 transition-colors') }, orderedFields.map(f => {
-                            const v = row[f];
+                            // Get value using nested data access for all fields
+                            const value = getNestedValue(row._original || row, f);
                             if (f === 'cmd') {
                                 return React.createElement('td', { key: f, className: 'px-3 py-2 border-b border-slate-100 max-w-xs' }, (
-                                    React.createElement('div', { className: 'flex items-start justify-between cursor-pointer px-3 py-2 bg-slate-50 hover:bg-indigo-50 rounded-md border border-slate-200', onClick: (e) => copy(String(v), e.currentTarget), title: 'Click to copy' }, [
-                                        React.createElement('span', { key: 't', className: 'font-mono text-xs text-slate-700 break-words flex-1 leading-relaxed' }, String(v)),
+                                    React.createElement('div', { className: 'flex items-start justify-between cursor-pointer px-3 py-2 bg-slate-50 hover:bg-indigo-50 rounded-md border border-slate-200', onClick: (e) => copy(String(value), e.currentTarget), title: 'Click to copy' }, [
+                                        React.createElement('span', { key: 't', className: 'font-mono text-xs text-slate-700 break-words flex-1 leading-relaxed' }, String(value)),
                                         React.createElement(Copy, { key: 'i', size: 14, className: 'text-slate-500 ml-2 shrink-0 mt-0.5' })
                                     ])
                                 ));
                             }
-                            return React.createElement('td', { key: f, className: 'px-3 py-2 border-b border-slate-100 whitespace-nowrap' }, typeof v === 'number' ? v.toFixed(2) : (v ?? ''));
+                            return React.createElement('td', { key: f, className: 'px-3 py-2 border-b border-slate-100 whitespace-nowrap' }, typeof value === 'number' ? value.toFixed(2) : (value ?? ''));
                         }))
                     )))
                 ])
@@ -870,21 +996,7 @@
                 React.createElement('header', { key: 'top', className: 'bg-transparent text-slate-900' }, [
                     React.createElement('div', { key: 'container', className: 'max-w-[1400px] mx-auto w-full px-5 py-6' }, [
                         React.createElement('div', { key: 'titleWrap', className: 'w-full flex flex-col items-center justify-center gap-4' }, [
-                            React.createElement('div', { key: 'title', className: 'text-2xl md:text-3xl font-bold tracking-tight' }, 'LLM Optimizer'),
-                            metadata && Object.keys(metadata).length > 0 && React.createElement('div', { key: 'metadata', className: 'flex flex-wrap gap-4 text-sm text-slate-600' }, [
-                                metadata.gpu_type && React.createElement('span', { key: 'gpu', className: 'flex items-center gap-1' }, [
-                                    React.createElement('span', { key: 'label', className: 'font-semibold' }, 'GPU:'),
-                                    `${metadata.gpu_type} x${metadata.gpu_count || 1}`
-                                ]),
-                                metadata.model_tag && React.createElement('span', { key: 'model', className: 'flex items-center gap-1' }, [
-                                    React.createElement('span', { key: 'label', className: 'font-semibold' }, 'Model:'),
-                                    metadata.model_tag
-                                ]),
-                                metadata.total_tests && React.createElement('span', { key: 'tests', className: 'flex items-center gap-1' }, [
-                                    React.createElement('span', { key: 'label', className: 'font-semibold' }, 'Tests:'),
-                                    metadata.total_tests
-                                ])
-                            ])
+                            React.createElement('div', { key: 'title', className: 'text-2xl md:text-3xl font-bold tracking-tight' }, 'LLM Optimizer')
                         ])
                     ])
                 ]),
@@ -892,14 +1004,46 @@
                 // Main
                 React.createElement('main', { key: 'm', className: 'flex-1 overflow-visible max-w-full' }, [
                     React.createElement('div', { key: 'container', className: 'max-w-[1400px] mx-auto w-full p-5 flex flex-col gap-4' }, [
-                        React.createElement('section', { key: 'hero', className: 'min-h-[78vh] flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4' }, [
-                            React.createElement(Controls, { key: 'ctrl', xAxis, yAxis, showLines, showPoints, fieldOptions, customConstraints, setCustomConstraints, showAddForm, setShowAddForm, disabledOriginalConstraints, setDisabledOriginalConstraints, onChange: (c) => { if (c.xAxis !== undefined) setXAxis(c.xAxis); if (c.yAxis !== undefined) setYAxis(c.yAxis); if (c.showLines !== undefined) setShowLines(c.showLines); if (c.showPoints !== undefined) setShowPoints(c.showPoints); } }),
-                            React.createElement('div', { key: 'chartWrap', className: 'w-full' }, [
+                        // Configuration Section
+                        React.createElement('section', { key: 'config', className: 'rounded-xl border border-slate-200 bg-white p-4' }, [
+                            React.createElement(Controls, { key: 'ctrl', showLines, showPoints, fieldOptions, customConstraints, setCustomConstraints, showAddForm, setShowAddForm, disabledOriginalConstraints, setDisabledOriginalConstraints, onChange: (c) => { if (c.showLines !== undefined) setShowLines(c.showLines); if (c.showPoints !== undefined) setShowPoints(c.showPoints); }, metadata })
+                        ]),
+
+                        // Chart Section
+                        React.createElement('section', { key: 'chart', className: 'rounded-xl border border-slate-200 bg-white p-4' }, [
+                            React.createElement('div', { key: 'chartWrap', className: 'w-full relative' }, [
+                                // Compact controls positioned over chart
+                                React.createElement('div', { key: 'chartControls', className: 'absolute top-2 left-2 right-2 z-10 flex justify-between items-center' }, [
+                                    React.createElement('div', { key: 'axisSelectors', className: 'flex gap-3 items-center text-sm bg-white/90 backdrop-blur-sm rounded px-2 py-1 border border-slate-200' }, [
+                                        React.createElement('div', { key: 'x', className: 'flex items-center gap-1' }, [
+                                            React.createElement('label', { className: 'text-xs font-medium text-slate-600' }, 'X-axis:'),
+                                            React.createElement('select', { value: xAxis, onChange: e => setXAxis(e.target.value), className: 'text-xs px-1 py-0.5 rounded border border-slate-300 bg-white' }, createSelectOptions('xAxis', fieldOptions))
+                                        ]),
+                                        React.createElement('div', { key: 'y', className: 'flex items-center gap-1' }, [
+                                            React.createElement('label', { className: 'text-xs font-medium text-slate-600' }, 'Y-axis:'),
+                                            React.createElement('select', { value: yAxis, onChange: e => setYAxis(e.target.value), className: 'text-xs px-1 py-0.5 rounded border border-slate-300 bg-white' }, createSelectOptions('yAxis', fieldOptions))
+                                        ])
+                                    ]),
+                                    React.createElement('div', { key: 'legendExplanation', className: 'flex items-center gap-3 text-xs text-slate-600 bg-white/90 backdrop-blur-sm rounded px-2 py-1 border border-slate-200', title: 'Pareto points lie on the frontier where no point can improve one objective without worsening the other.' }, [
+                                        React.createElement('div', { key: 'lg1', className: 'flex items-center gap-1' }, [
+                                            React.createElement('span', { key: 'dot1', className: 'inline-block w-2 h-2 rounded-full', style: { backgroundColor: '#0284c7', border: '1px solid #ffffff' } }),
+                                            React.createElement('span', { key: 'txt1' }, 'Pareto')
+                                        ]),
+                                        React.createElement('div', { key: 'lg2', className: 'flex items-center gap-1' }, [
+                                            React.createElement('span', { key: 'dot2', className: 'inline-block w-2 h-2 rounded-full', style: { backgroundColor: '#10b981' } }),
+                                            React.createElement('span', { key: 'txt2' }, 'Pareto + constraints')
+                                        ]),
+                                        React.createElement('div', { key: 'lg3', className: 'flex items-center gap-1' }, [
+                                            React.createElement('span', { key: 'dot3', className: 'inline-block w-2 h-2 rounded-full', style: { backgroundColor: '#94a3b8' } }),
+                                            React.createElement('span', { key: 'txt3' }, 'Others')
+                                        ])
+                                    ])
+                                ]),
                                 React.createElement(Chart, { key: 'c', dataset, xAxis, yAxis, showLines, showPoints, constraints: effectiveConstraints, onSelect: (pt) => setSelectedPoint(pt) })
                             ])
                         ]),
                         React.createElement('section', { key: 'best', className: 'rounded-xl border border-slate-200 bg-white p-4' }, [
-                            React.createElement('h2', { key: 'title', className: 'text-lg font-semibold mb-3' }, 'Best Configuration'),
+                            React.createElement('h2', { key: 'title', className: 'text-sm font-semibold mb-2' }, 'Best Configuration'),
                             React.createElement('div', { key: 'config', className: 'space-y-3' }, (() => {
                                 // Determine if we have any active constraints (benchmark + custom)
                                 const hasActiveConstraints = effectiveConstraints && effectiveConstraints.length > 0;
@@ -909,42 +1053,48 @@
                                 const throughputField = isInputThroughput ? 'input_throughput' : 'output_throughput';
 
                                 // Calculate best configuration dynamically based on current constraints
-                                const selectedConfig = calculateBestConfig(dataset, effectiveConstraints, throughputField);
+                                // Use original data, not transformed data
+                                const selectedConfig = calculateBestConfig(data, effectiveConstraints, throughputField);
 
                                 if (!selectedConfig) {
                                     return React.createElement('div', { className: 'text-sm text-slate-500' }, 'No valid configuration found');
                                 }
 
-                                const title = `Best ${isInputThroughput ? 'Input' : 'Output'} Throughput`;
+                                const throughputType = isInputThroughput ? 'Input Throughput' : 'Output Throughput';
                                 const constraintLabel = hasActiveConstraints ? 'With Constraints' : 'Unconstrained';
 
                                 return React.createElement('div', { key: 'single-config' }, [
-                                    React.createElement('h3', { key: 'config-title', className: 'text-sm font-medium text-slate-600 mb-2' }, title),
                                     React.createElement('div', { key: 'config-card', className: 'border border-slate-200 rounded-lg p-3' }, [
-                                        React.createElement('div', { key: 'header', className: 'flex items-center justify-between mb-2' }, [
-                                            React.createElement('h4', { key: 'subtitle', className: 'font-medium text-xs text-slate-600' }, constraintLabel),
-                                            React.createElement('div', { key: 'throughput', className: 'text-lg font-bold text-slate-900' },
-                                                `${(selectedConfig.throughput || 0).toFixed(1)} tok/s`
-                                            )
+                                        React.createElement('div', { key: 'details', className: 'flex justify-between items-center text-xs text-slate-600 mb-2' }, [
+                                            React.createElement('span', { key: 'throughput', className: 'font-medium' }, `${throughputType}: ${(selectedConfig.throughput || 0).toFixed(1)} tok/s`),
+                                            React.createElement('span', { key: 'config-details' }, (() => {
+                                                const parts = [];
+
+                                                // Get client args from nested data
+                                                const originalData = selectedConfig.originalData;
+                                                const requestRate = originalData?.config?.client_args?.request_rate;
+                                                const maxConcurrency = originalData?.config?.client_args?.max_concurrency;
+
+                                                // Get server args directly from config
+                                                const serverArgs = selectedConfig.config?.server_args || {};
+
+                                                // Add constraint label first
+                                                const combinedParts = [constraintLabel];
+
+                                                // Add client args
+                                                if (maxConcurrency !== undefined) {
+                                                    combinedParts.push(`max_concurrency: ${maxConcurrency}`);
+                                                }
+
+                                                if (requestRate !== undefined && requestRate !== Infinity) {
+                                                    combinedParts.push(`request_rate: ${requestRate}`);
+                                                }
+
+                                                // Don't add server args to Unconstrained section
+
+                                                return combinedParts.join(' • ');
+                                            })())
                                         ]),
-                                        React.createElement('div', { key: 'details', className: 'text-xs text-slate-600 mb-2' }, (() => {
-                                            const parts = [];
-
-                                            // Get values from flattened data
-                                            const originalData = selectedConfig.originalData;
-                                            const requestRate = originalData?.request_rate;
-                                            const maxConcurrency = originalData?.max_concurrency;
-
-                                            if (requestRate !== undefined && requestRate !== Infinity) {
-                                                parts.push(`request_rate: ${requestRate}`);
-                                            }
-
-                                            if (maxConcurrency !== undefined) {
-                                                parts.push(`max_concurrency: ${maxConcurrency}`);
-                                            }
-
-                                            return parts.length > 0 ? parts.join(', ') : '';
-                                        })()),
                                         selectedConfig.cmd && React.createElement('div', { key: 'cmd-wrapper', className: 'relative' }, [
                                             React.createElement('pre', { key: 'cmd', className: 'p-2 bg-slate-50 rounded text-xs overflow-x-auto' },
                                                 React.createElement('code', {}, selectedConfig.cmd)
