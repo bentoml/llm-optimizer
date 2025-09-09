@@ -75,9 +75,11 @@ def generate_common_base_configs(
     client_arg_sets = []
 
     # Add base client args
+    max_concurrency = optimal_concurrency // 2
+    num_prompts = max(1000, max_concurrency * 2)
     client_arg_sets.extend([
-        ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[1000]),
-        ArgSet(scope=ArgScope.CLIENT, name="max_concurrency", arg_type=int, values=[optimal_concurrency // 2])
+        ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[num_prompts]),
+        ArgSet(scope=ArgScope.CLIENT, name="max_concurrency", arg_type=int, values=[max_concurrency])
     ])
 
     # Add server args using framework mapping
@@ -133,9 +135,11 @@ def generate_common_base_configs(
         client_arg_sets = []
 
         # Add base client args with higher concurrency
+        max_concurrency = optimal_concurrency
+        num_prompts = max(1000, max_concurrency * 2)
         client_arg_sets.extend([
-            ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[1000]),
-            ArgSet(scope=ArgScope.CLIENT, name="max_concurrency", arg_type=int, values=[optimal_concurrency])
+            ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[num_prompts]),
+            ArgSet(scope=ArgScope.CLIENT, name="max_concurrency", arg_type=int, values=[max_concurrency])
         ])
 
         # Add server args
@@ -176,9 +180,11 @@ def generate_common_base_configs(
     client_arg_sets = []
 
     # Add base client args with lower concurrency
+    max_concurrency = optimal_concurrency // 4
+    num_prompts = max(1000, max_concurrency * 2)
     client_arg_sets.extend([
-        ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[1000]),
-        ArgSet(scope=ArgScope.CLIENT, name="max_concurrency", arg_type=int, values=[optimal_concurrency // 4])
+        ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[num_prompts]),
+        ArgSet(scope=ArgScope.CLIENT, name="max_concurrency", arg_type=int, values=[max_concurrency])
     ])
 
     # Add server args
@@ -253,8 +259,9 @@ def generate_simple_tuning_configs(
     concurrency_values = generate_parameter_range(optimal_concurrency, num_values=3, variation_factor=0.5)
 
     # Client ArgSets - max_concurrency is universal across frameworks
+    num_prompts = max(1000, max(*concurrency_values) * 2)
     client_arg_sets = [
-        ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[1000]),
+        ArgSet(scope=ArgScope.CLIENT, name="num_prompts", arg_type=int, values=[num_prompts]),
         ArgSet(scope=ArgScope.CLIENT, name="max_concurrency", arg_type=int, values=concurrency_values)
     ]
 

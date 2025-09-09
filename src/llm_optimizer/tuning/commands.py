@@ -54,7 +54,6 @@ def generate_llm_optimizer_commands(
 
         # Build client args with dataset-specific parameters
         fixed_client_args = [
-            "num_prompts=1000",
             f"dataset_name={dataset}",
         ]
 
