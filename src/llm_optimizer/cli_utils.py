@@ -179,12 +179,17 @@ def detect_gpu_type():
         if pynvml.nvmlDeviceGetCount() == 0:
             return None
 
-        # Get the first GPU
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        gpu_name = pynvml.nvmlDeviceGetName(handle).decode("utf-8")
+
+        # different version of nvmlDeviceGetName may return bytes or str
+        try:
+            gpu_name = pynvml.nvmlDeviceGetName(handle).decode("utf-8")
+        except AttributeError:
+            gpu_name = pynvml.nvmlDeviceGetName(handle)
 
         # Map GPU names to our standardized names
         gpu_mapping = {
+            "NVIDIA B200": "B200",
             "NVIDIA H100": "H100",
             "NVIDIA H200": "H200",
             "NVIDIA A100": "A100",
@@ -196,23 +201,7 @@ def detect_gpu_type():
             if full_name in gpu_name:
                 return short_name
 
-        # Try to extract model from name
-        if "H100" in gpu_name:
-            return "H100"
-        elif "H200" in gpu_name:
-            return "H200"
-        elif "A100" in gpu_name:
-            return "A100"
-        elif "L20" in gpu_name:
-            return "L20"
-        elif "L40" in gpu_name:
-            return "L40"
-        elif "B100" in gpu_name:
-            return "B100"
-        elif "B200" in gpu_name:
-            return "B200"
-
-        return None
+        return gpu_name
 
     except Exception:
         return None
