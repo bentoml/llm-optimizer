@@ -33,7 +33,7 @@ The quickest way to try llm-optimizer is with performance estimation. This featu
 ```bash
 llm-optimizer estimate \
   --model meta-llama/Llama-3.1-8B-Instruct \
-  --gpu A100 \
+  --gpu A100 \  # No need to provide gpu type if llm-optimizer can detect the local machine's GPU type and it's supported
   --input-len 1024 \
   --output-len 512
 ```
