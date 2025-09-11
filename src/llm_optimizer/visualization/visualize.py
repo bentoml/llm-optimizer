@@ -12,6 +12,8 @@ import logging
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
+from llm_optimizer.utils import InfinityToNullEncoder
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
@@ -41,7 +43,7 @@ def convert_constraints_for_visualization(parsed_constraints):
             "ttft": "ttft_ms",
             "itl": "itl_ms",
             "tpot": "tpot_ms",
-            "e2e_latency": "e2e_latency_ms"
+            "e2e_latency": "e2e_latency_ms",
         }
 
         base_metric = metric_mapping.get(constraint.metric, constraint.metric)
@@ -57,11 +59,9 @@ def convert_constraints_for_visualization(parsed_constraints):
         else:
             field_name = f"{constraint.stat_type}_{base_metric}"
 
-        constraints_list.append({
-            "op": constraint.operator,
-            "value": value_ms,
-            "name": field_name
-        })
+        constraints_list.append(
+            {"op": constraint.operator, "value": value_ms, "name": field_name}
+        )
 
     return constraints_list
 
@@ -87,8 +87,6 @@ class ParetoLLMOptimizer:
         except json.JSONDecodeError as e:
             logger.error(f"Error parsing configuration file: {e}")
             return {}
-
-
 
     def load_benchmark_data(self, data_file: str) -> dict:
         """Load benchmark data from JSON files."""
@@ -192,17 +190,29 @@ class ParetoLLMOptimizer:
             html_content = f.read()
 
         # Prepare data for embedding
-        data_json = json.dumps(data_dict["data"], indent=2)
-        constraints_json = json.dumps(data_dict["constraints"], indent=2)
-        config_json = json.dumps(self.config, indent=2)
-        field_options_json = json.dumps(
-            self.get_field_options(data_dict["data"]), indent=2
+        data_json = json.dumps(data_dict["data"], indent=2, cls=InfinityToNullEncoder)
+        constraints_json = json.dumps(
+            data_dict["constraints"], indent=2, cls=InfinityToNullEncoder
         )
-        field_categories_json = json.dumps(self.get_field_categories(), indent=2)
-        defaults_json = json.dumps(self.config.get("defaults", {}), indent=2)
-        metadata_json = json.dumps(data_dict.get("metadata", {}), indent=2)
+        config_json = json.dumps(self.config, indent=2, cls=InfinityToNullEncoder)
+        field_options_json = json.dumps(
+            self.get_field_options(data_dict["data"]),
+            indent=2,
+            cls=InfinityToNullEncoder,
+        )
+        field_categories_json = json.dumps(
+            self.get_field_categories(), indent=2, cls=InfinityToNullEncoder
+        )
+        defaults_json = json.dumps(
+            self.config.get("defaults", {}), indent=2, cls=InfinityToNullEncoder
+        )
+        metadata_json = json.dumps(
+            data_dict.get("metadata", {}), indent=2, cls=InfinityToNullEncoder
+        )
         best_configs_json = json.dumps(
-            data_dict.get("best_configurations", {}), indent=2
+            data_dict.get("best_configurations", {}),
+            indent=2,
+            cls=InfinityToNullEncoder,
         )
 
         # Get UI configuration

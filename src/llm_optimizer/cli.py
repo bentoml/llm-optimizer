@@ -25,6 +25,7 @@ from llm_optimizer.server_utils import (
     start_server,
     terminate_process_top_down,
 )
+from llm_optimizer.utils import InfinityToNullEncoder
 
 setup_logging()
 logger = get_logger("main")
@@ -43,8 +44,6 @@ def construct_benchmark_settings(combo: list[lo_args.BaseArg]) -> dict[str, t.An
         "server_args": dict(server_kv_pairs),
         "server_cmd_args": server_cmd_args,
     }
-
-
 
 
 def extract_token_lengths(client_params: dict) -> tuple[int, int]:
@@ -509,11 +508,15 @@ def benchmark(
 
             if output_jsonl_path:
                 with open(output_jsonl_path, "a") as f:
-                    f.write(json.dumps(result_with_config) + "\n")
+                    f.write(
+                        json.dumps(result_with_config, cls=InfinityToNullEncoder) + "\n"
+                    )
                 logger.info(f"Appended result to {output_jsonl_path}")
             else:
                 with open(output_file_path, "w") as f:
-                    json.dump(result_with_config, f, indent=2)
+                    json.dump(
+                        result_with_config, f, indent=2, cls=InfinityToNullEncoder
+                    )
                 logger.info(f"Benchmark results saved to {output_file_path}")
 
         except Exception as e:
@@ -563,7 +566,7 @@ def benchmark(
         }
 
         with open(output_json, "w") as f:
-            json.dump(enhanced_results, f, indent=2)
+            json.dump(enhanced_results, f, indent=2, cls=InfinityToNullEncoder)
         logger.info(
             f"All benchmark results saved to {output_json} with enhanced metadata"
         )
