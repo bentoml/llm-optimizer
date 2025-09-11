@@ -9,15 +9,15 @@ GPU_SPECS = {
     # NVIDIA Hopper Architecture GPUs
     "H100": {
         "FP16_TFLOPS": 989.5,  # Official NVIDIA specification for SXM5 variant
-        "FP8_TFLOPS": 1979.0,  # 4th gen Tensor Cores with FP8 support
+        "FP8_TFLOPS": 1978.0,  # 4th gen Tensor Cores with FP8 support
         "Memory_Bandwidth_GBs": 3350,  # 3.35 TB/s HBM3 memory bandwidth
         "VRAM_GB": 80,
         "Architecture": "Hopper",
         "Memory_Type": "HBM3",
     },
     "H200": {
-        "FP16_TFLOPS": 1979.0,  # Official NVIDIA specification - 2x H100 FP16 performance
-        "FP8_TFLOPS": 3958.0,  # Official NVIDIA specification - 2x H100 FP8 performance
+        "FP16_TFLOPS": 989.0,  # Official NVIDIA specification
+        "FP8_TFLOPS": 1978.0,  # Official NVIDIA specification
         "Memory_Bandwidth_GBs": 4800,  # 4.8 TB/s HBM3e memory bandwidth
         "VRAM_GB": 141,
         "Architecture": "Hopper",
