@@ -320,6 +320,7 @@ def benchmark(
             port = {
                 "sglang": 30000,
                 "vllm": 8000,
+                "max": 8000,
             }.get(framework, 30000)
 
         tmpl = predefined.SEVER_CMD_TMPL[framework]
@@ -475,8 +476,11 @@ def benchmark(
             server_process = start_server(full_server_cmd, {}, ready_url, mute_server)
 
             # Run Benchmark
+            # Currently are testing OpenAI-compatible API, so pass "vllm" as backend to bench_client
+            # We keep the possibility of use different backend for different framework here
+            backend_for_bench = "vllm"
             benchmark_args = {
-                "backend": framework,
+                "backend": backend_for_bench,
                 "model": model,
                 "host": host,
                 "port": port,
