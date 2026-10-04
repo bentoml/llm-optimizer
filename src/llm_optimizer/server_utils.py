@@ -2,6 +2,7 @@ import os
 import shlex
 import subprocess
 import time
+from typing import Optional
 
 import psutil
 import requests
@@ -17,10 +18,16 @@ def wait_for_server(
     max_retries: int = 60,
     delay: int = 5,
     request_timeout: int = 5,
+    process: Optional[psutil.Popen] = None,
 ) -> bool:
-    """Repeatedly try to access the server until it's available."""
+    """Repeatedly try to access the server until it's available.
+
+    Gives up early if `process` is given and has exited.
+    """
     logger.info(f"Waiting for server to be ready at {url}...")
     for attempt in range(max_retries):
+        if process is not None and process.poll() is not None:
+            return False
         try:
             response = requests.get(url, timeout=request_timeout)
             if response.status_code == 200:
@@ -37,7 +44,11 @@ def wait_for_server(
 
 
 def start_server(
-    server_cmd: str, server_envs: dict[str, str], ready_url: str, mute: bool
+    server_cmd: str,
+    server_envs: dict[str, str],
+    ready_url: str,
+    mute: bool,
+    timeout: int = 300,
 ) -> psutil.Process:
     """Starts the server and waits for it to become ready."""
     cmd = shlex.split(server_cmd)
@@ -53,10 +64,19 @@ def start_server(
         )
         logger.debug(f"Started server with PID: {server_process.pid}")
 
-        if not wait_for_server(ready_url):
-            raise ServerNotReadyError(
-                "Server did not become ready in the allotted time."
-            )
+        delay = 5
+        if not wait_for_server(
+            ready_url,
+            max_retries=max(1, timeout // delay),
+            delay=delay,
+            process=server_process,
+        ):
+            if server_process.poll() is not None:
+                raise ServerNotReadyError(
+                    f"Server process exited with code {server_process.returncode} "
+                    "before becoming ready."
+                )
+            raise ServerNotReadyError(f"Server did not become ready within {timeout}s.")
 
         return server_process
     except Exception:
