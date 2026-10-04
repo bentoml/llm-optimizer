@@ -863,7 +863,8 @@ def sample_sharegpt_requests(
                 add_generation_prompt=True,
                 tokenize=False,
             )
-            prompt = prompt.replace(tokenizer.bos_token, "")
+            if tokenizer.bos_token:
+                prompt = prompt.replace(tokenizer.bos_token, "")
 
         prompt_token_ids = tokenizer.encode(prompt)
         completion = dataset[i][1]
@@ -1078,7 +1079,8 @@ def sample_generated_shared_prefix_requests(
                 system_prefix = tokenizer.decode(
                     tokenizer.encode(system_prompt)[:randomize_start]
                 )
-                system_prefix = system_prefix.replace(tokenizer.bos_token, "")
+                if tokenizer.bos_token:
+                    system_prefix = system_prefix.replace(tokenizer.bos_token, "")
                 individual_system_prompt = system_prefix + random_part
 
             question = questions[group_idx * prompts_per_group + prompt_idx]
