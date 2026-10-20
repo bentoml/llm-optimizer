@@ -226,7 +226,7 @@ mypy src/
 
 ## Community
 
-llm-optimizer is actively maintained by the BentoML team. Feel free to reach out and [join our Slack community!](https://l.bentoml.com/join-slack)
+If you have any questions, feel free to reach out and [join our community forum](https://forum.modular.com/c/bento/31).
 
 ## Contributing
 
