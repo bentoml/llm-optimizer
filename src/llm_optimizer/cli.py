@@ -705,7 +705,7 @@ def visualize(data_file, config, output, serve, port):
 @click.option(
     "--framework",
     type=click.Choice(["sglang", "vllm", "both"]),
-    default="both",
+    default=None,
     help="Framework to optimize for",
 )
 @click.option(
@@ -714,14 +714,14 @@ def visualize(data_file, config, output, serve, port):
 @click.option(
     "--target",
     type=click.Choice(["throughput", "latency"]),
-    default="throughput",
+    default=None,
     help="Optimization target",
 )
 @click.option("--interactive", is_flag=True, help="Run in interactive mode")
 @click.option(
     "--dataset",
     type=click.Choice(["random", "sharegpt"]),
-    default="random",
+    default=None,
     help="Dataset to use for benchmarking (default: random)",
 )
 def estimate_performance(
@@ -775,6 +775,12 @@ def estimate_performance(
             precision = precision or interactive_params["precision"]
             framework = framework or interactive_params["framework"]
             dataset = dataset or interactive_params["dataset"]
+
+        # Apply defaults after collecting interactive input so they do not
+        # override the user's choices. Explicit CLI options still take priority.
+        framework = framework or "both"
+        target = target or "throughput"
+        dataset = dataset or "random"
 
         # GPU configuration (both modes may need this)
         if interactive or not gpu or not num_gpus:
