@@ -219,6 +219,12 @@ def get_config_id(client_params: dict, server_params: dict) -> str:
     help="Endpoint to check if server is ready (e.g., /health, /readyz).",
 )
 @click.option(
+    "--server-timeout",
+    type=int,
+    default=300,
+    help="Seconds to wait for the server to become ready.",
+)
+@click.option(
     "--host", type=str, default="127.0.0.1", help="Server host to connect to."
 )
 @click.option("--port", type=int, default=None, help="Server port to connect to.")
@@ -241,6 +247,7 @@ def cli(
     rest,
     mute_server,
     ready_endpoint,
+    server_timeout,
     host,
     port,
     constraints,
@@ -262,6 +269,7 @@ def cli(
             rest,
             mute_server,
             ready_endpoint,
+            server_timeout,
             host,
             port,
             constraints,
@@ -282,6 +290,7 @@ def benchmark(
     rest,
     mute_server,
     ready_endpoint,
+    server_timeout,
     host,
     port,
     constraints,
@@ -473,7 +482,9 @@ def benchmark(
         full_server_cmd = f"{server_cmd} {' '.join(server_cmd_args)}"
 
         try:
-            server_process = start_server(full_server_cmd, {}, ready_url, mute_server)
+            server_process = start_server(
+                full_server_cmd, {}, ready_url, mute_server, server_timeout
+            )
 
             # Run Benchmark
             # Currently are testing OpenAI-compatible API, so pass "vllm" as backend to bench_client
