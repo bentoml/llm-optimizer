@@ -18,6 +18,8 @@ dependencies = [
     "scipy",
     "huggingface_hub",
     "pydantic",
+    "transformers",
+    "jinja2",
 ]
 
 [project.scripts]
