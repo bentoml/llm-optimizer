@@ -30,10 +30,12 @@ pip install -e .[dev]
 
 The quickest way to try llm-optimizer is with performance estimation. This feature predicts latency, throughput, and concurrency limits, helping you identify optimal configurations without running full benchmarks:
 
+The `--gpu` option can be omitted if llm-optimizer can detect a supported GPU on the local machine.
+
 ```bash
 llm-optimizer estimate \
   --model meta-llama/Llama-3.1-8B-Instruct \
-  --gpu A100 \  # No need to provide gpu type if llm-optimizer can detect the local machine's GPU type and it's supported
+  --gpu A100 \
   --input-len 1024 \
   --output-len 512
 ```
